@@ -1,0 +1,33 @@
+# ── Secrets & live configs ─────────────────────────────────────────────
+# NEVER commit API keys or any live-trading config.
+*secret*
+*api_key*
+config-live.json
+config-prod.json
+.env
+.env.*
+
+# ── Freqtrade runtime artifacts ────────────────────────────────────────
+user_data/data/            # downloaded OHLCV (large, re-downloadable)
+user_data/backtest_results/
+user_data/hyperopt_results/
+user_data/logs/
+user_data/plot/
+user_data/tradesv3.sqlite*  # the trade database (incl. dry-run)
+*.log
+
+# ── Python ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ── OS / editor ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,33 @@
+# JamTrade Bot — Python dependencies
+#
+# Freqtrade pulls in most of what you need (pandas, numpy, ccxt, ta-lib bindings,
+# scikit-optimize for hyperopt, etc.). Pin to a recent stable line.
+#
+# Install with:  pip install -r requirements.txt
+# (Use a virtual environment. On most systems you'll also need the TA-Lib C
+#  library installed at the OS level before the python binding will build —
+#  see docs/SETUP-GUIDE.md.)
+
+freqtrade>=2024.1
+
+# Notebook / analysis extras (optional but handy for studying results)
+jupyterlab>=4.0
+matplotlib>=3.7
+seaborn>=0.13
+plotly>=5.18
+
+# For the standalone signal_advisor.py (Telegram buy/hold/sell pings).
+# Freqtrade already pulls ccxt + pandas + ta-lib, but these are listed
+# explicitly so the advisor can run even in a minimal environment.
+ccxt>=4.2
+requests>=2.31
+# TA-Lib python binding requires the TA-Lib C library at the OS level first.
+# Debian/Ubuntu/Pi:  sudo apt-get install -y ta-lib  (or build from source)
+# macOS (brew):      brew install ta-lib
+TA-Lib>=0.4.28
+
+# For the OPTIONAL sentiment context module (scripts/sentiment.py).
+# Fear & Greed + CoinGecko need only `requests` (already above).
+# pytrends powers the OPTIONAL Google Trends signal; the module fails soft
+# without it, so this is genuinely optional.
+pytrends>=4.9

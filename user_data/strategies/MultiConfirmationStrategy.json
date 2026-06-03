@@ -1,0 +1,36 @@
+{
+  "strategy_name": "MultiConfirmationStrategy",
+  "params": {
+    "roi": {
+      "0": 0.2,
+      "240": 0.1,
+      "720": 0.05,
+      "1440": 0.02
+    },
+    "stoploss": {
+      "stoploss": -0.1
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_adx_min": 25,
+      "buy_bb_std": 1.8,
+      "buy_min_score": 3,
+      "buy_rsi": 32,
+      "buy_vol_mult": 1.8
+    },
+    "sell": {
+      "atr_stop_mult": 3.9,
+      "sell_rsi": 80
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-06-03 12:50:53.778596+00:00"
+}
