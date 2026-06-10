@@ -2,10 +2,7 @@
   "strategy_name": "MultiConfirmationStrategy",
   "params": {
     "roi": {
-      "0": 0.2,
-      "240": 0.1,
-      "720": 0.05,
-      "1440": 0.02
+      "0": 100
     },
     "stoploss": {
       "stoploss": -0.1

@@ -57,14 +57,12 @@ class MultiConfirmationStrategy(IStrategy):
     timeframe = "4h"
     can_short = False
 
-    # Let the custom trailing stop + exit signals do the work, so the static
-    # ROI table is intentionally permissive. We are NOT relying on it as the
-    # primary exit. (You can tighten this after paper trading.)
+    # v1.3 experiment: ROI table DISABLED. The old table force-took profit at
+    # 2% after one day, capping every winner while the ATR trailing stop
+    # (3.9x) was tuned to let them run — the two exits fought each other.
+    # Exits are now owned entirely by the ATR trailing stop + indicator exit.
     minimal_roi = {
-        "0": 0.20,    # take 20% if we somehow get it immediately
-        "240": 0.10,  # after 240 min, 10% is fine
-        "720": 0.05,  # after 720 min, 5%
-        "1440": 0.02  # after a day, take 2%
+        "0": 100  # effectively never triggers
     }
 
     # Hard safety net stoploss. The ATR trailing logic should usually trigger

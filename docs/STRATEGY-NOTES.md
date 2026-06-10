@@ -64,6 +64,16 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### v1.3 — ROI table disabled (2026-06-10)
+- Diagnosis: `minimal_roi` force-took profit at 2% after one day, capping winners while the 3.9× ATR trailing stop was tuned to let them run — the two exits fought each other (avg winner was 0.43%).
+- One change: `minimal_roi = {"0": 100}` (never triggers) in both the strategy and the hyperopt JSON (the JSON pins ROI and silently overrides the .py).
+- 2023: +5.30% → +5.62%, PF 1.43 → 2.09, drawdown 2.48% → 1.70%.
+- 2024: +1.98% → +7.32%, Sharpe 0.24 → 0.50, PF 1.14 → 1.48.
+- 2025 bear (market -44%): -0.98% → **+1.03%**, PF 0.92 → 1.08 — first period flipped from loss to gain.
+- Trade counts dropped (fewer, longer trades) — consistent with winners running instead of being clipped.
+- Lookahead check: PASS.
+- Verdict: keep. Exits are now owned entirely by ATR trailing + indicator exit. Still far below buy-and-hold in bulls; that's structural for a dip-buying long-only system.
+
 ### v1.2.1 — signal_advisor HTML fix (2026-06-03)
 - Fixed Telegram 400 error: `rsi<38` layer label used raw `<` which Telegram's HTML parse_mode rejected. Changed to `rsi&lt;38` in `scripts/signal_advisor.py`.
 - Confirmed end-to-end: advisor fetches live Binance data, runs indicators, sends BUY/HOLD/SELL message including sentiment block to Telegram.
