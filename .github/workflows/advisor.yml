@@ -1,0 +1,32 @@
+name: Signal Advisor
+
+on:
+  schedule:
+    # Every 4 hours, 5 min past the hour (gives the 4h candle time to close).
+    # Note: GitHub may delay scheduled runs by a few minutes under load —
+    # acceptable for an advisory ping.
+    - cron: "5 0,4,8,12,16,20 * * *"
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+jobs:
+  advise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Only the advisor's deps — not the full freqtrade stack.
+      # ta-lib 0.6+ ships manylinux wheels with the C library bundled.
+      - name: Install dependencies
+        run: pip install ccxt pandas TA-Lib requests
+
+      - name: Run advisor once
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python scripts/signal_advisor.py --once
