@@ -64,6 +64,13 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### v1.4 experiment — armed trailing stop (2026-06-10) — REVERTED
+- Hypothesis (from trade export): the always-on ATR trail handles 62% of exits at avg -1.57% (26% win rate) and is the drag; arming it only after +1 ATR of profit should cut that bucket. Supporting evidence: hyperopt pinned `atr_stop_mult` at 3.9 against a 4.0 ceiling, and the indicator exit averages +7.37% at 100% win rate.
+- Change tested: `custom_stoploss` returned the static -10% until `current_profit >= 1 ATR`, then trailed at 3.9×ATR.
+- Results: 2023 +5.62% → +4.86% (worse), 2024 +7.32% → +9.75% (better), 2025 bear +1.03% → **-0.70%** (flipped negative).
+- Verdict: **revert**. Total was a wash but regime robustness — v1.3's best property — degraded; barely-green bear-market trades rode down to the -10% backstop instead of exiting at -1.6%. Trailing-stop avenue is now closed with data.
+- Useful residue: the exit-reason breakdown (indicator exit = the moneymaker; trail = defensive cost) should guide future experiments toward entry quality, not exit tuning.
+
 ### v1.3 — ROI table disabled (2026-06-10)
 - Diagnosis: `minimal_roi` force-took profit at 2% after one day, capping winners while the 3.9× ATR trailing stop was tuned to let them run — the two exits fought each other (avg winner was 0.43%).
 - One change: `minimal_roi = {"0": 100}` (never triggers) in both the strategy and the hyperopt JSON (the JSON pins ROI and silently overrides the .py).
