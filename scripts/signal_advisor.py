@@ -217,11 +217,13 @@ def format_message(pair: str, r: dict) -> str:
 
 def run_once(notify_hold: bool = False) -> None:
     exchange = getattr(ccxt, EXCHANGE_ID)({"enableRateLimit": True})
+    ok_count = 0
     for pair in PAIRS:
         pair = pair.strip()
         try:
             df = fetch_ohlcv(exchange, pair)
             r = analyze(df)
+            ok_count += 1
             # By default only ping on actionable signals to avoid noise.
             if r["decision"] != "HOLD" or notify_hold:
                 send_telegram(format_message(pair, r))
@@ -229,6 +231,11 @@ def run_once(notify_hold: bool = False) -> None:
                 print(f"{pair}: HOLD (score {r['buy_score']}/6) — no alert sent")
         except Exception as e:  # noqa: BLE001 — advisory tool, keep running
             print(f"[error analyzing {pair}] {e}")
+    if ok_count == 0:
+        # Every pair failed (network outage, geo-block, exchange down).
+        # Exit non-zero so schedulers (systemd, GitHub Actions) surface it
+        # instead of reporting a silent green run.
+        raise SystemExit(f"All {len(PAIRS)} pairs failed to analyze — see errors above.")
 
 
 def main() -> None:

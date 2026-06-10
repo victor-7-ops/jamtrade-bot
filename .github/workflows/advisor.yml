@@ -29,4 +29,10 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          # Binance geo-blocks GitHub's US runner IPs (HTTP 451).
+          # Kraken's public API works from US IPs; BTC/ETH/SOL prices are
+          # arbitrage-locked across exchanges so signals are equivalent.
+          # BNB is not listed on Kraken (and is blacklisted in the bot anyway).
+          ADVISOR_EXCHANGE: kraken
+          ADVISOR_PAIRS: BTC/USDT,ETH/USDT,SOL/USDT
         run: python scripts/signal_advisor.py --once
