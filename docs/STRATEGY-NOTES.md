@@ -64,6 +64,29 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### v1.5 — entry-layer attribution tags + custom_stoploss audit (2026-06-12)
+- **Audit (no code change):** investigated suspected lookahead in `custom_stoploss`
+  (`dataframe["atr"].iat[-1]` on `get_analyzed_dataframe`). Verified in freqtrade 2026.5
+  source that backtesting slices the analyzed dataframe to the current simulated candle
+  (`DataProvider._set_dataframe_max_index`), so `.iat[-1]` is the correct current-candle
+  ATR. No bug; v1.1–v1.3 backtest numbers stand. 2023/2024 backtests reproduced v1.3 exactly.
+- **Change:** added `enter_tag` layer bitmap (e.g. `L1+L3+L5`) in `populate_entry_trend`.
+  Tagging only — entry/exit logic untouched; full-range backtest totals unchanged.
+- **Attribution findings** (20230101–20250601, 107 trades, +16.26%, PF 1.67):
+  - Only 4 layer combos ever fire. Two archetypes dominate: `L1+L3+L5` trend-continuation
+    (79 trades, avg +1.8%) and `L2+L4+L5` mean-reversion dip (25 trades, avg +1.3%).
+    Both net positive in 2023, 2024, and 2025 — no rotten combo to filter out.
+  - L5 (volume) fired on 100% of entries — it behaves as a hard gate, not a confirmation.
+  - L6 (RSI divergence) fired once in 2.5 years, and that trade hit the full -10% stop.
+    Too rare to justify, but n=1 is not evidence to act on; leave for now.
+  - The 6 hard -10% stop_loss exits cost -0.61 total — as much as all 65 trailing stops
+    combined. Inspected: 5 of 6 are SOL/USDT (the most volatile pair), most hit -10%
+    within 4–24h — flash-crash candles too fast for the 4h trail to ratchet (incl. the
+    2025-01-19/20 SOL crash). Future experiment candidate: volatility-aware position
+    sizing (smaller stakes when ATR% is extreme) rather than touching the stop itself.
+- Lookahead + recursion check: PASS.
+- Verdict: keep (instrumentation is free and makes every future experiment measurable).
+
 ### v1.4 experiment — armed trailing stop (2026-06-10) — REVERTED
 - Hypothesis (from trade export): the always-on ATR trail handles 62% of exits at avg -1.57% (26% win rate) and is the drag; arming it only after +1 ATR of profit should cut that bucket. Supporting evidence: hyperopt pinned `atr_stop_mult` at 3.9 against a 4.0 ceiling, and the indicator exit averages +7.37% at 100% win rate.
 - Change tested: `custom_stoploss` returned the static -10% until `current_profit >= 1 ATR`, then trailed at 3.9×ATR.

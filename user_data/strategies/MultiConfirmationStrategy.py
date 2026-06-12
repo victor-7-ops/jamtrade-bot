@@ -191,6 +191,15 @@ class MultiConfirmationStrategy(IStrategy):
 
         dataframe["buy_score"] = l1 + l2 + l3 + l4 + l5 + l6
 
+        # Attribution: tag each entry with the layer bitmap (e.g. "L1+L3+L5")
+        # so trade exports reveal which confirmation combos win or lose.
+        # Tagging only — does not change entry/exit logic.
+        layers = {"L1": l1, "L2": l2, "L3": l3, "L4": l4, "L5": l5, "L6": l6}
+        dataframe["enter_tag"] = ""
+        for name, col in layers.items():
+            dataframe.loc[col == 1, "enter_tag"] += f"{name}+"
+        dataframe["enter_tag"] = dataframe["enter_tag"].str.rstrip("+")
+
         # Gating filters
         regime_ok = dataframe["adx"] >= self.buy_adx_min.value
         # Higher-timeframe uptrend (column auto-created by @informative)
