@@ -14,6 +14,8 @@ user_data/hyperopt_results/
 user_data/logs/
 user_data/plot/
 user_data/tradesv3.sqlite*  # the trade database (incl. dry-run)
+# trade DB at repo root (dry-run journal/WAL/SHM) — own line; inline # is not a comment
+tradesv3*.sqlite*
 *.log
 
 # ── Python ─────────────────────────────────────────────────────────────
