@@ -64,6 +64,31 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### v1.6 — volatility-aware position sizing (2026-06-14)
+- **Hypothesis (from v1.5 attribution):** the 6 hard -10% stop exits were the single
+  biggest cost bucket (≈ as much as all 65 trailing stops combined), and 5 of 6 were SOL
+  flash crashes. v1.5 flagged volatility-aware sizing as the fix — risk fewer *dollars* on
+  high-volatility entries rather than touching the stop or the signals.
+- **Threshold set from data, not guessed.** Measured ATR% (atr/close) distribution on 4h:
+  BTC median 1.28% / p90 2.02%; SOL median 2.49% / p90 4.10% / max 7.27%. SOL runs ~2× BTC
+  volatility and owns the flash-crash tail. Picked a 3.5% knee: normal BTC/ETH/BNB and
+  typical SOL trades are untouched; only elevated-vol entries get trimmed.
+- **Change:** added `custom_stake_amount`. When entry-candle ATR% > 3.5%, stake is scaled
+  by `max(0.5, 0.035 / atr_pct)` (inverse-proportional, floored at 50%). Below threshold,
+  full size. Risk policy — deliberately NOT hyperopted (can't be overfit). Entry/exit logic
+  and stops untouched; trade count stays 107.
+- **Results** (v1.5 → v1.6):
+  - Full 20230101–20250601: +16.26% → **+17.12%**, PF 1.67 → **1.75**, Sharpe 0.46 → **0.50**,
+    max DD 3.20% → **3.09%**.
+  - 2023 bull: +5.62% → +5.64% (flat). 2024 mixed: +7.32% → +7.39%, DD 3.37% → 3.26%.
+  - 2025 H1 bear: +2.14% → **+2.90%**, DD 1.97% → **1.23%** — biggest gain, exactly where
+    tail risk bites. No regime flipped negative (the property v1.4 broke).
+- Lookahead check: PASS (no bias, 0 biased signals). Recursion: `atr` stable at -0.000%;
+  the ema200_1d figure is the pre-existing v1.2 characteristic, unrelated to this change.
+- **Verdict: keep.** Small, mechanistically-expected, risk-adjusted improvement concentrated
+  in the bear regime. Strengthens risk management rather than weakening it. Not a suspicious
+  result — believable in size and direction.
+
 ### v1.5 — entry-layer attribution tags + custom_stoploss audit (2026-06-12)
 - **Audit (no code change):** investigated suspected lookahead in `custom_stoploss`
   (`dataframe["atr"].iat[-1]` on `get_analyzed_dataframe`). Verified in freqtrade 2026.5

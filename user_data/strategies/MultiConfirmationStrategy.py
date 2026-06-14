@@ -97,6 +97,16 @@ class MultiConfirmationStrategy(IStrategy):
     sell_rsi = IntParameter(60, 80, default=68, space="sell", optimize=True)
     atr_stop_mult = DecimalParameter(1.5, 4.0, default=2.5, decimals=1, space="sell", optimize=True)
 
+    # --- Volatility-aware position sizing (v1.6) --------------------------
+    # Risk policy, NOT a signal knob — deliberately not hyperopted so it can't
+    # be overfit. When the entry candle's ATR% (atr / price) is elevated, take
+    # a smaller stake so a flash-crash trade costs fewer dollars. The -10% hard
+    # stops (mostly SOL flash crashes) were the single biggest cost bucket in
+    # the v1.5 attribution; this trims that tail without touching the stop or
+    # the signals. Below the threshold, stake is unchanged (multiplier = 1.0).
+    vol_haircut_threshold = 0.035  # ATR% above which the haircut begins (3.5%)
+    vol_haircut_floor = 0.5        # never shrink below 50% of the proposed stake
+
     # --- Plotting (shows up in freqtrade plot-dataframe) -------------------
     plot_config = {
         "main_plot": {
@@ -266,6 +276,48 @@ class MultiConfirmationStrategy(IStrategy):
 
         # custom_stoploss must return a NEGATIVE ratio (e.g. -0.05 = 5% below).
         return -abs(atr_distance)
+
+    # ----------------------------------------------------------------------
+    def custom_stake_amount(
+        self,
+        pair: str,
+        current_time: datetime,
+        current_rate: float,
+        proposed_stake: float,
+        min_stake,
+        max_stake: float,
+        leverage: float,
+        entry_tag,
+        side: str,
+        **kwargs,
+    ) -> float:
+        """
+        Volatility-aware position sizing. When the current candle's ATR% is
+        above ``vol_haircut_threshold``, shrink the stake proportionally
+        (capped at ``vol_haircut_floor``) so high-volatility entries — where
+        flash-crash tail risk lives — risk fewer dollars. Never increases the
+        stake. Uses the current analyzed candle only (no future data).
+        """
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        if dataframe is None or len(dataframe) == 0 or current_rate <= 0:
+            return proposed_stake
+
+        last_atr = dataframe["atr"].iat[-1]
+        if last_atr is None or np.isnan(last_atr):
+            return proposed_stake
+
+        atr_pct = last_atr / current_rate
+        if atr_pct <= self.vol_haircut_threshold:
+            return proposed_stake  # normal volatility — full size
+
+        # Inverse-proportional haircut, floored so positions stay meaningful.
+        multiplier = max(self.vol_haircut_floor, self.vol_haircut_threshold / atr_pct)
+        stake = proposed_stake * multiplier
+
+        # Respect freqtrade's minimum tradeable stake.
+        if min_stake is not None and stake < min_stake:
+            stake = min_stake
+        return stake
 
     # ----------------------------------------------------------------------
     def confirm_trade_entry(
