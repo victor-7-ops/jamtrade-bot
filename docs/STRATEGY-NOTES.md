@@ -64,6 +64,30 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### v1.7 — prune L6 (bullish RSI divergence) (2026-06-17)
+- **Hypothesis (from v1.5 attribution):** L6 fired on exactly one entry in 2.5
+  years and that single trade hit the full -10% stop. A confirmation layer that
+  fires once and loses isn't confirming anything — it's noise that can only ever
+  push a borderline 2-layer setup over the `buy_min_score=3` line. Acting now (vs
+  v1.5's "n=1, leave it") because the cost is asymmetric: it can add bad entries,
+  never good ones, and removing it also deletes ~20 lines of divergence plumbing.
+- **Change:** removed the `bull_div` indicator block from `populate_indicators`
+  and dropped `l6` from `buy_score` / the attribution `layers` dict in
+  `populate_entry_trend`. No thresholds touched; stops, sizing, gates unchanged.
+- **Results** (v1.6 → v1.7, 20230101–20250601):
+  - Full range: +17.12% → **+19.03%**, trades 107 → **106** (exactly one entry
+    removed), win 52.3% → **53.8%**, avg profit 1.52% → **1.71%**, max DD
+    3.09% → **2.64%**.
+  - The dropped trade was the lone L6 entry, in 2024: 2024 mixed +7.39% → **+9.30%**
+    (DD 2.78%). 2023 bull +5.64% and 2025-H1 bear +2.90% **identical** to v1.6 —
+    no other entry changed. No regime flipped negative (the v1.4 failure mode).
+- Lookahead check: **PASS** (no bias, 0 biased entry/exit/indicators, 20 signals).
+  Recursion: `atr` stable at -0.000%; `ema200_1d` shows the pre-existing v1.2
+  startup characteristic, unrelated to this change.
+- **Verdict: keep.** Strictly removes a known loser; improvement is one trade,
+  fully explained, not a suspicious across-the-board lift. Less code, same risk
+  controls. L6 logic preserved in git history if ever revisited with real evidence.
+
 ### v1.6 — volatility-aware position sizing (2026-06-14)
 - **Hypothesis (from v1.5 attribution):** the 6 hard -10% stop exits were the single
   biggest cost bucket (≈ as much as all 65 trailing stops combined), and 5 of 6 were SOL

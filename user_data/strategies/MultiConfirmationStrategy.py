@@ -19,7 +19,10 @@ Confirmation layers (need >= 3 to enter long):
     L3: MACD histogram > 0           (momentum shift up)
     L4: Close below lower Bollinger  (price at value)
     L5: Volume > 1.4x its 20-SMA     (conviction)
-    L6: Bullish RSI divergence       (bonus reversal signal)
+
+    (v1.7 removed L6 "bullish RSI divergence": v1.5 attribution showed it fired
+     on exactly one trade in 2.5 years and that trade hit the full -10% stop.
+     Too rare to confirm anything; dropped as noise. See STRATEGY-NOTES.md.)
 
 Gating filters (ALL must pass):
     - ADX >= threshold               (only trade when a trend exists)
@@ -167,22 +170,7 @@ class MultiConfirmationStrategy(IStrategy):
         # Volume conviction
         dataframe["volume_sma"] = dataframe["volume"].rolling(20).mean()
 
-        # --- Bullish RSI divergence (L6) ----------------------------------
-        # Price makes a lower low over the lookback, but RSI makes a higher low.
-        lookback = 10
-        dataframe["recent_low"] = dataframe["close"].rolling(lookback).min()
-        dataframe["prior_low"] = (
-            dataframe["close"].shift(2).rolling(lookback).min()
-        )
-        dataframe["rsi_recent_low"] = dataframe["rsi"].rolling(lookback).min()
-        dataframe["rsi_prior_low"] = (
-            dataframe["rsi"].shift(2).rolling(lookback).min()
-        )
-        dataframe["bull_div"] = (
-            (dataframe["close"] <= dataframe["recent_low"])
-            & (dataframe["recent_low"] < dataframe["prior_low"])
-            & (dataframe["rsi_recent_low"] > dataframe["rsi_prior_low"])
-        ).astype("int")
+        # (v1.7: L6 bullish-RSI-divergence indicator removed — see populate_entry_trend)
 
         return dataframe
 
@@ -197,14 +185,13 @@ class MultiConfirmationStrategy(IStrategy):
             dataframe["volume"]
             > dataframe["volume_sma"] * float(self.buy_vol_mult.value)
         ).astype("int")
-        l6 = dataframe["bull_div"]  # already 0/1
 
-        dataframe["buy_score"] = l1 + l2 + l3 + l4 + l5 + l6
+        dataframe["buy_score"] = l1 + l2 + l3 + l4 + l5
 
         # Attribution: tag each entry with the layer bitmap (e.g. "L1+L3+L5")
         # so trade exports reveal which confirmation combos win or lose.
         # Tagging only — does not change entry/exit logic.
-        layers = {"L1": l1, "L2": l2, "L3": l3, "L4": l4, "L5": l5, "L6": l6}
+        layers = {"L1": l1, "L2": l2, "L3": l3, "L4": l4, "L5": l5}
         dataframe["enter_tag"] = ""
         for name, col in layers.items():
             dataframe.loc[col == 1, "enter_tag"] += f"{name}+"
