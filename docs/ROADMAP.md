@@ -3,23 +3,29 @@
 A phased plan. The phases are ordered for a reason — don't jump ahead. Each gate exists to
 protect you from the most common (and expensive) mistakes.
 
-## Phase 1 — Understand & Backtest ▶ (current)
+## Phase 1 — Understand & Backtest ✅ (cleared)
 
 **Goal:** know exactly how the strategy behaves on historical data.
 
-- [ ] Install Freqtrade, download data (`scripts/download-data.sh`)
-- [ ] Run a backtest across multiple years, not just one good one
-- [ ] Run `scripts/validate.sh` — confirm no lookahead bias
-- [ ] Read `docs/STRATEGY-NOTES.md` until each layer makes sense to you
-- [ ] Backtest across different market conditions (a bull year, a bear year, a flat year)
+- [x] Install Freqtrade, download data (`scripts/download-data.sh`) — freqtrade 2026.5, talib 0.6.8, BTC/ETH/BNB/SOL 4h+1d
+- [x] Run a backtest across multiple years (20230101–20250601, 106 trades)
+- [x] Run `scripts/validate.sh` — lookahead PASS (no bias), recursion stable
+- [ ] Read `docs/STRATEGY-NOTES.md` until each layer makes sense to you (owner task)
+- [x] Backtest across different market conditions: 2023 bull +5.64%, 2024 mixed +9.30%, 2025-H1 bear +2.90% (v1.7)
 
 **Exit criteria:** you can explain why every trade was taken, and the lookahead check passes.
 
-## Phase 2 — Paper Trade on Live Feed (next)
+## Phase 2 — Paper Trade on Live Feed ▶ (current)
 
 **Goal:** see if backtest behavior survives contact with the real, live market.
 
-- [ ] Run `scripts/dryrun.sh` (dry-run, fake money, real prices)
+> **Status (2026-06-17):** a dry-run has been live on the Binance feed since
+> 2026-06-04 (`tradesv3.dryrun.sqlite`). It was started on pre-v1.3 code, so its
+> paper history does **not** reflect the current strategy (v1.7). To make Phase 2
+> meaningful it must be restarted on v1.7 — ideally with a fresh paper DB so the
+> baseline is clean. Clock the "weeks to months" from that restart, not from 6/04.
+
+- [~] Run `scripts/dryrun.sh` (dry-run, fake money, real prices) — running, but on stale code; restart on v1.7
 - [ ] Let it run for **weeks to months** — resist the urge to judge it in days
 - [ ] Optionally enable Telegram alerts to monitor without watching a terminal
 - [ ] Compare live dry-run stats against the backtest for the same period
