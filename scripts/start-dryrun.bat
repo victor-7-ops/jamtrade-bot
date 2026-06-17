@@ -7,6 +7,15 @@
 
 cd /d "C:\Users\gadia\Downloads\jamtrade-bot\jamtrade-bot"
 
+:: Guard against double-start (e.g. a re-logon while an instance is already
+:: up). Two freqtrade processes sharing tradesv3.dryrun.sqlite would corrupt
+:: the paper-trade state. Skip the launch if one is already running.
+tasklist /fi "imagename eq freqtrade.exe" 2>nul | find /i "freqtrade.exe" >nul
+if %errorlevel%==0 (
+  echo [start-dryrun] freqtrade already running — skipping launch.
+  exit /b 0
+)
+
 ".venv\Scripts\freqtrade.exe" trade ^
   --config user_data/config-dryrun.json ^
   --strategy MultiConfirmationStrategy ^
