@@ -52,7 +52,30 @@ boot and restart if it crashes.
 
 ---
 
-## 🥈 Option 2: Oracle Cloud "Always Free" (best free cloud)
+## 🥈 Option 2: AWS EC2 (t3.micro, free-tier credits)
+
+AWS gives $100 in credits (+ $100 more possible) on the new Free Plan, expiring 22 Dec 2026.
+A t3.micro running 24/7 costs ~$7.50/mo — the credits cover 6+ months, then you decide
+whether to keep paying (~$8/mo) or migrate to Oracle Always Free.
+
+**Pros:** real Linux VM, x86 (TA-Lib builds without ARM pain), widely documented.
+**Cons:** credits expire; after 22 Dec 2026 it bills automatically at ~$8/mo.
+
+**Non-negotiable setup step — set a billing alarm before launching anything:**
+1. AWS Console → CloudWatch → Alarms → Create Alarm
+2. Metric: `Billing > Total Estimated Charge > USD`
+3. Threshold: `> 1.00`
+4. Action: send email to yourself
+This catches any accidental paid-service usage immediately.
+
+**Do NOT enable AWS Organizations** — the free-plan email explicitly warns this auto-upgrades
+to a paid plan.
+
+See `docs/AWS-DEPLOY.md` for the full runbook.
+
+---
+
+## 🥉 Option 3: Oracle Cloud "Always Free" (best free cloud forever)
 
 Oracle's Always Free tier gives you small VMs that genuinely don't expire. It's the closest
 thing to a free always-on cloud server in 2026.
