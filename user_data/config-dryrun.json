@@ -51,7 +51,7 @@
         "//  No API keys are needed for dry-run with public data.": "",
         "//  When you eventually go live, you'd add key/secret here AND": "",
         "//  flip dry_run to false — but not before paper trading.": "",
-        "name": "binance",
+        "name": "kraken",
         "key": "",
         "secret": "",
         "ccxt_config": {},
@@ -59,8 +59,7 @@
         "pair_whitelist": [
             "BTC/USDT",
             "ETH/USDT",
-            "SOL/USDT",
-            "BNB/USDT"
+            "SOL/USDT"
         ],
         "pair_blacklist": [
             "BNB/.*",
