@@ -80,9 +80,9 @@
     "//  To get alerts: create a bot via @BotFather, get your chat id,": "",
     "//  set enabled=true and fill token/chat_id below.": "",
     "telegram": {
-        "enabled": false,
-        "token": "",
-        "chat_id": ""
+        "enabled": true,
+        "token": "${TG_TOKEN}",
+        "chat_id": "${TG_CHAT_ID}"
     },
 
     "//  The REST API + web UI. Change the password before exposing it.": "",
