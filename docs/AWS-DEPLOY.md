@@ -1,6 +1,6 @@
 # AWS EC2 Deployment — Full Runbook
 
-JamTrade dry-run bot on a t3.micro (Ubuntu 24.04, x86), running 24/7 via systemd.
+JamTrade dry-run bot on a t3.micro (Ubuntu 26.04, x86), running 24/7 via systemd.
 
 > Work split: **You** do the AWS console steps (browser, ~15 min).
 > **Claude Code** handles everything on the server over SSH.
@@ -19,6 +19,7 @@ Your PC                          AWS EC2 (t3.micro)
 ```
 
 - `dry_run: true` — paper trading only, no real money
+- Exchange: **Kraken** (Binance returns HTTP 451 geo-block from US AWS IPs)
 - systemd `Restart=always` — auto-recovers from crashes
 - Only port 22 (SSH from your IP) is open — no web exposure
 - Secrets in `~/.env` (chmod 600), never committed
@@ -44,7 +45,7 @@ up charges fast.
 
 1. EC2 → **Launch instance**
 2. Name: `jamtrade-dryrun`
-3. AMI: **Ubuntu Server 24.04 LTS (x86_64)** — pick the one marked "Free tier eligible"
+3. AMI: **Ubuntu Server 26.04 LTS (x86_64)** — pick the one marked "Free tier eligible"
 4. Instance type: **t3.micro** (1 vCPU, 1GB RAM)
 5. Key pair: **Create new key pair**
    - Name: `jamtrade-key`
@@ -194,7 +195,30 @@ The old DB is preserved — you don't lose paper trade history.
 
 ---
 
-## Part 8 — Monthly health check (5 min)
+## Part 8 — Disk space (watch this)
+
+The 8 GiB volume fills up faster than expected — freqtrade logs + the trade DB + pip cache.
+At launch disk was already at ~88% used. Check monthly and rotate logs if needed:
+
+```bash
+# Check usage
+df -h /
+
+# How big is the log?
+du -sh ~/jamtrade-bot/user_data/logs/dryrun.log
+
+# Rotate manually if > 500MB (keeps last 50k lines)
+tail -n 50000 ~/jamtrade-bot/user_data/logs/dryrun.log > /tmp/dryrun.log.tmp && mv /tmp/dryrun.log.tmp ~/jamtrade-bot/user_data/logs/dryrun.log
+
+# Or clear pip cache (recovers ~200-400MB)
+pip cache purge
+```
+
+If consistently > 90%, expand the EBS volume in EC2 console (Storage → Modify → increase to 16GB → `sudo resize2fs /dev/root`).
+
+---
+
+## Part 9 — Monthly health check (5 min)
 
 ```bash
 # System updates
