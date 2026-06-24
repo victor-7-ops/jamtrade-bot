@@ -64,6 +64,17 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### config fix — BNB pairlist contradiction (2026-06-21)
+- Config-only, no strategy logic touched. `BNB/USDT` sat in **both** `pair_whitelist`
+  and `pair_blacklist` (`BNB/.*`) in `config-dryrun.json`. Blacklist won every cycle,
+  so BNB could never trade — a dead whitelist slot spamming a `Removing it from
+  whitelist` WARNING each loop. Dropped `BNB/USDT` from the whitelist (blacklist was
+  the clear intent).
+- Restarted dry-run; whitelist now resolves cleanly to `['BTC/USDT','ETH/USDT','SOL/USDT']`,
+  warning gone. **Paper clock restarts here (2026-06-21).** Note: the bot had also died
+  and relaunched ~9× since 6/17 (Windows sleep/reboot), so the 6/17 clock was already
+  fragmented — worth fixing power settings before trusting the live sample.
+
 ### v1.7 — prune L6 (bullish RSI divergence) (2026-06-17)
 - **Hypothesis (from v1.5 attribution):** L6 fired on exactly one entry in 2.5
   years and that single trade hit the full -10% stop. A confirmation layer that
