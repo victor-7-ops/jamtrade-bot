@@ -148,6 +148,47 @@ def bucketize(trades: list[dict], key: str) -> dict[str, Bucket]:
     return buckets
 
 
+def layer_presence_stats(trades: list[dict], min_trades: int) -> list[str]:
+    """
+    Per-layer fire-rate + conditional profit, split from the enter_tag bitmap
+    (e.g. "L1+L3+L5" -> layers L1, L3, L5 present).
+
+    v1.5 (STRATEGY-NOTES) found L5 fired on 100% of backtest entries — meaning
+    it behaves as a hard gate, not a confirmation layer, but that was a single
+    historical snapshot. This tracks the same thing continuously on live paper
+    trades: does a layer actually discriminate winners from losers, or does it
+    just always fire and add nothing?
+    """
+    tagged = [t for t in trades if t["enter_tag"] != "(untagged)"]
+    if not tagged:
+        return []
+
+    all_layers = sorted({layer for t in tagged for layer in t["enter_tag"].split("+")})
+    lines = ["── Layer presence (fire-rate + profit when present vs absent) ──"]
+    lines.append(f"{'layer':<6} {'fire%':>6} {'n_in':>5} {'avg%_in':>8} {'n_out':>6} {'avg%_out':>9}")
+
+    for layer in all_layers:
+        present = Bucket()
+        absent = Bucket()
+        for t in tagged:
+            b = present if layer in t["enter_tag"].split("+") else absent
+            b.add(t["profit"], t["duration_h"])
+
+        fire_pct = 100.0 * present.n / len(tagged)
+        out_avg = f"{absent.avg_profit_pct:>+8.2f}%" if absent.n >= min_trades else f"{'(n/a)':>9}"
+        lines.append(
+            f"{layer:<6} {fire_pct:>5.0f}% {present.n:>5} {present.avg_profit_pct:>+7.2f}% "
+            f"{absent.n:>6} {out_avg}"
+        )
+        if fire_pct >= 95.0 and absent.n < min_trades:
+            lines.append(
+                f"       ⚠️ fires on ~all entries — acting as a hard gate, not a discriminating "
+                f"confirmation (same pattern v1.5 found for L5 in the backtest)"
+            )
+
+    return lines
+
+
 def max_drawdown_pct(trades: list[dict]) -> float:
     """Max drawdown of the cumulative profit-ratio curve, in percentage points."""
     cum = peak = 0.0
@@ -285,6 +326,11 @@ def main() -> None:
         lines.append("── Exit-reason breakdown (where profit leaks) ──")
         lines.extend(fmt_bucket_table(bucketize(trades, "exit_reason"), args.min_trades, "exit"))
         lines.append("")
+
+        layer_lines = layer_presence_stats(trades, args.min_trades)
+        if layer_lines:
+            lines.extend(layer_lines)
+            lines.append("")
 
         if os.path.exists(args.baseline):
             with open(args.baseline, encoding="utf-8") as f:
