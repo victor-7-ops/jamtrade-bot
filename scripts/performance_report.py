@@ -215,6 +215,36 @@ def fmt_bucket_table(buckets: dict[str, Bucket], min_trades: int, label: str) ->
     return lines
 
 
+def novel_tag_check(trades: list[dict], baseline: dict) -> list[str]:
+    """
+    Flag any live enter_tag combo absent from the backtest's known combo set.
+
+    STRATEGY-NOTES v1.5 recorded exactly 4 combos across 2.5 years of backtest
+    (L1+L3+L5, L2+L4+L5 dominant; L1+L2+L3, L2+L4 minor) — "only 4 layer combos
+    ever fire." A 5th combo appearing live means either a genuinely new market
+    regime the backtest never saw, or the live strategy behaving differently
+    than the backtested one (version mismatch, data feed quirk). Either way,
+    it's worth a human look, not a silent surprise months later.
+
+    ``known_tags`` in the baseline is populated by hand from STRATEGY-NOTES
+    (or from a detailed --export trades run) since the summary export used by
+    --make-baseline doesn't carry per-trade tags. Silently skipped if absent.
+    """
+    known = baseline.get("known_tags")
+    if not known:
+        return []
+    known_set = set(known)
+    live_tags = {t["enter_tag"] for t in trades if t["enter_tag"] != "(untagged)"}
+    novel = sorted(live_tags - known_set)
+    if not novel:
+        return []
+    return [
+        "── Novel entry-tag check ──",
+        f"⚠️ combo(s) not seen in the backtest's known set {sorted(known_set)}: {novel}",
+        "Investigate: new market regime, or live strategy diverging from the backtested version.",
+    ]
+
+
 def drift_report(overall: Bucket, baseline: dict) -> list[str]:
     lines = ["── Drift vs backtest baseline ──"]
     if overall.n < MIN_TRADES_FOR_DRIFT:
@@ -247,7 +277,7 @@ def drift_report(overall: Bucket, baseline: dict) -> list[str]:
     return lines
 
 
-def make_baseline(backtest_json: str, out_path: str) -> None:
+def make_baseline(backtest_json: str, out_path: str, known_tags: str | None = None) -> None:
     """Distill a freqtrade backtest result export into the small baseline file."""
     with open(backtest_json, encoding="utf-8") as f:
         data = json.load(f)
@@ -261,6 +291,8 @@ def make_baseline(backtest_json: str, out_path: str) -> None:
         "avg_profit_pct": round(100.0 * strat["profit_mean"], 4),
         "max_drawdown_pct": round(100.0 * strat.get("max_drawdown_account", strat.get("max_drawdown", 0.0)), 2),
     }
+    if known_tags:
+        baseline["known_tags"] = [t.strip() for t in known_tags.split(",") if t.strip()]
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(baseline, f, indent=2)
     print(f"Baseline written to {out_path}:")
@@ -296,10 +328,14 @@ def main() -> None:
                     help="generate baseline from a freqtrade backtest result export, then exit")
     ap.add_argument("--out", default="user_data/backtest_baseline.json",
                     help="output path for --make-baseline")
+    ap.add_argument("--known-tags", metavar="L1+L3+L5,L2+L4+L5,...",
+                    help="comma-separated known enter_tag combos from the backtest "
+                         "(e.g. from STRATEGY-NOTES.md), stored in the baseline for "
+                         "the novel-tag check")
     args = ap.parse_args()
 
     if args.make_baseline:
-        make_baseline(args.make_baseline, args.out)
+        make_baseline(args.make_baseline, args.out, args.known_tags)
         return
 
     trades = load_closed_trades(args.db)
@@ -334,7 +370,12 @@ def main() -> None:
 
         if os.path.exists(args.baseline):
             with open(args.baseline, encoding="utf-8") as f:
-                lines.extend(drift_report(overall, json.load(f)))
+                baseline = json.load(f)
+            novel_lines = novel_tag_check(trades, baseline)
+            if novel_lines:
+                lines.extend(novel_lines)
+                lines.append("")
+            lines.extend(drift_report(overall, baseline))
         else:
             lines.append(f"(no baseline at {args.baseline} — run --make-baseline after your "
                          f"next v1.7 backtest to enable the drift check)")
