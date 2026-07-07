@@ -100,20 +100,20 @@ class MultiConfirmationStrategy(IStrategy):
     sell_rsi = IntParameter(60, 80, default=68, space="sell", optimize=True)
     atr_stop_mult = DecimalParameter(1.5, 4.0, default=2.5, decimals=1, space="sell", optimize=True)
 
-    # --- Portfolio-level risk cap (v1.8 CANDIDATE — NOT YET VALIDATED) ----
-    # Disabled by default. v1.6's vol-haircut sizes each trade independently;
-    # this adds a second, portfolio-wide cap: total risk (stake * stop-distance,
-    # summed across all open trades + the one being sized) must stay under
-    # `portfolio_risk_cap_pct` of current total wallet. With max_open_trades=3
-    # and fixed stake_amount, 3 simultaneous high-volatility entries can each
-    # pass the per-trade vol-haircut individually while still stacking more
-    # correlated risk than intended (crypto pairs move together in crashes).
-    #
-    # Per CLAUDE.md: change ONE thing at a time, backtest, compare before/after
-    # (same protocol as v1.3-v1.7 in STRATEGY-NOTES.md), and NEVER claim this
-    # improves anything until that backtest exists. Flip the flag on only to
-    # test it; leave off otherwise so behavior is unchanged from v1.7.
-    enable_portfolio_risk_cap = False  # DO NOT set True without backtesting first
+    # --- Portfolio-level risk cap (v1.8 experiment — TESTED, NOT ENABLED) --
+    # Backtested 20230101-20250601 against current params/data. At this
+    # threshold (6% of wallet) it is a complete no-op: byte-identical results
+    # to the flag being off, because 3 trades x $100 stake x ~4-10% ATR-stop
+    # distance is only ~$12-30 combined risk, well under 6% of a $1000
+    # wallet ($60). Tightened to 1.5% purely to confirm the mechanism binds:
+    # it does (profit 19.03% -> 18.43%), but drawdown was UNCHANGED (2.64% ->
+    # 2.65%) — it throttled position size without reducing realized risk for
+    # this strategy's trade pattern. No backtest evidence this helps at any
+    # threshold that wouldn't also just be a blunt stake-size cut. Left here,
+    # disabled, as documented infrastructure in case a future config (bigger
+    # stakes, more concurrent trades) makes the correlated-risk scenario it
+    # targets actually bite. See STRATEGY-NOTES.md v1.8 entry.
+    enable_portfolio_risk_cap = False  # no evidence to enable — see note above
     portfolio_risk_cap_pct = 0.06  # max combined risk (stake * stop-distance) as a fraction of total wallet
 
     # --- Volatility-aware position sizing (v1.6) --------------------------
