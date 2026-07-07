@@ -77,7 +77,9 @@ Loose ideas to explore later, once the foundation is solid:
 - A small web dashboard (ties into your JamSpace / .NET interests) to monitor trades
 - Portfolio-level position sizing instead of fixed stake
 - Alternative regime detection (e.g. volatility regimes, not just ADX)
-- Walk-forward automation to continuously re-validate as new data arrives
+- ~~Walk-forward automation to continuously re-validate as new data arrives~~ — done:
+  `scripts/walk_forward.sh` + `scripts/walk_forward_report.py` (rolling out-of-sample
+  windows, decay/instability flags)
 
 ---
 
