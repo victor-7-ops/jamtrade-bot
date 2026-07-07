@@ -64,6 +64,43 @@ sideways ones — which is the majority of the time. Two filters address this:
 
 ## Changelog
 
+### v1.8 experiment — portfolio-level risk cap (2026-07-07) — NOT ENABLED
+- **Hypothesis:** v1.6's vol-haircut sizes each trade independently by its own ATR%.
+  With `max_open_trades=3` and fixed `stake_amount=100`, three simultaneous
+  high-volatility entries could each pass the per-trade check while stacking more
+  combined risk than intended — crypto pairs move together in a crash, so per-trade
+  independence doesn't guarantee portfolio-level safety.
+- **Change tested:** added `custom_stake_amount` second-pass cap — total risk (stake
+  x stop-distance, summed across all open trades + the one being sized) capped at
+  `portfolio_risk_cap_pct` of total wallet. Behind a disabled-by-default flag
+  (`enable_portfolio_risk_cap`), never touches existing trades, never increases stake.
+- **Results** (20230101-20250601, same range as v1.6/v1.7):
+  - At `portfolio_risk_cap_pct=0.06` (6%, a reasonable-sounding threshold): **complete
+    no-op**. Byte-identical results to the flag being off. Math: 3 trades x $100 stake
+    x ~4-10% ATR-stop-distance is only ~$12-30 combined risk, well under 6% of a
+    $1000 wallet ($60). The scenario it targets doesn't occur at this stake size.
+  - Tightened to 1.5% purely to confirm the mechanism binds at all: it does (profit
+    19.03% -> 18.43%), but **max drawdown was unchanged** (2.64% -> 2.65%). It
+    throttled position size without reducing realized risk for this strategy's
+    actual trade pattern — a worse risk/reward trade than just cutting stake size
+    directly, not a smarter one.
+  - Lookahead check: PASS (no bias) at both settings — the stake-sizing hook doesn't
+    touch entry/exit signal logic, so this was expected.
+- **Verdict: keep code, disabled.** No backtest evidence this helps at any threshold
+  loose enough to matter, and tightening it just becomes a blunt stake cut with no
+  demonstrated drawdown benefit. Left in the strategy file (flag off, well-documented)
+  as ready-to-test infrastructure in case a future config — bigger stakes, more
+  concurrent open trades, a portfolio that actually experiences correlated pile-ups —
+  makes the scenario it targets real. Re-test before ever flipping the flag on.
+- **Baseline note:** backtested against the actual v1.1-hyperopted params
+  (`buy_rsi=32, buy_adx_min=25, buy_vol_mult=1.8, buy_bb_std=1.8, buy_min_score=3,
+  sell_rsi=80, atr_stop_mult=3.9`) — 106 trades, +19.03%, PF 1.89, max DD 2.64%.
+  Close to but not identical to the documented v1.6 full-range numbers (+17.12%,
+  PF 1.75, 107 trades) — plausibly explained by v1.7's L6 removal (one fewer losing
+  trade type) plus possible minor data-file differences since those notes were
+  written. Recommend re-confirming this baseline independently before treating it as
+  the new reference number.
+
 ### config fix — BNB pairlist contradiction (2026-06-21)
 - Config-only, no strategy logic touched. `BNB/USDT` sat in **both** `pair_whitelist`
   and `pair_blacklist` (`BNB/.*`) in `config-dryrun.json`. Blacklist won every cycle,
