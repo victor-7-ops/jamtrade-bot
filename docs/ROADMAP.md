@@ -74,7 +74,9 @@ hyperopt result can't reproduce its edge on data it never saw, throw it out.
 Loose ideas to explore later, once the foundation is solid:
 
 - Short-side logic for bear markets (significant added risk — research carefully)
-- A small web dashboard (ties into your JamSpace / .NET interests) to monitor trades
+- ~~A small web dashboard (ties into your JamSpace / .NET interests) to monitor trades~~ —
+  done (static-HTML version): `scripts/dashboard.py`. No server, regenerate any time.
+  A live .NET version remains open if you want something richer later.
 - Portfolio-level position sizing instead of fixed stake
 - Alternative regime detection (e.g. volatility regimes, not just ADX)
 - ~~Walk-forward automation to continuously re-validate as new data arrives~~ — done:
