@@ -72,9 +72,19 @@ while :; do
       --timerange "$timerange" \
       --timeframe 4h \
       --export trades \
-      --export-filename "$export_dir/result.json" \
+      --export-directory "$export_dir" \
       > "$export_dir/log.txt" 2>&1; then
-    echo "  ✓ backtest complete → $export_dir/result.json"
+    # freqtrade names its own export file (backtest-result-<timestamp>.zip);
+    # --export-filename is deprecated/ignored as of freqtrade 2026.x, so we
+    # locate whatever it wrote in $export_dir and normalize it to result.json.
+    latest_zip=$(ls -t "$export_dir"/backtest-result-*.zip 2>/dev/null | head -1)
+    if [ -z "$latest_zip" ]; then
+      echo "  ✕ backtest reported success but no export zip found in $export_dir — see log.txt"
+    else
+      inner_json=$(unzip -Z1 "$latest_zip" | grep -E '^backtest-result-[0-9_-]+\.json$' | head -1)
+      unzip -p "$latest_zip" "$inner_json" > "$export_dir/result.json"
+      echo "  ✓ backtest complete → $export_dir/result.json"
+    fi
   else
     echo "  ✕ backtest FAILED for this window — see $export_dir/log.txt"
     echo "    (often means no trades / no data in this slice; check log before worrying)"
