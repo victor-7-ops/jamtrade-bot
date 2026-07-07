@@ -1,0 +1,13 @@
+{
+  "source": "backtest-result-2026-07-07_15-16-53.json",
+  "generated": "2026-07-07T15:39:02Z",
+  "total_trades": 106,
+  "win_rate_pct": 53.77,
+  "avg_profit_pct": 1.7132,
+  "max_drawdown_pct": 2.64,
+  "known_tags": [
+    "L1+L3+L5",
+    "L1+L4+L5",
+    "L2+L4+L5"
+  ]
+}
