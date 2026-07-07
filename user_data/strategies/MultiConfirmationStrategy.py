@@ -100,6 +100,22 @@ class MultiConfirmationStrategy(IStrategy):
     sell_rsi = IntParameter(60, 80, default=68, space="sell", optimize=True)
     atr_stop_mult = DecimalParameter(1.5, 4.0, default=2.5, decimals=1, space="sell", optimize=True)
 
+    # --- Portfolio-level risk cap (v1.8 CANDIDATE — NOT YET VALIDATED) ----
+    # Disabled by default. v1.6's vol-haircut sizes each trade independently;
+    # this adds a second, portfolio-wide cap: total risk (stake * stop-distance,
+    # summed across all open trades + the one being sized) must stay under
+    # `portfolio_risk_cap_pct` of current total wallet. With max_open_trades=3
+    # and fixed stake_amount, 3 simultaneous high-volatility entries can each
+    # pass the per-trade vol-haircut individually while still stacking more
+    # correlated risk than intended (crypto pairs move together in crashes).
+    #
+    # Per CLAUDE.md: change ONE thing at a time, backtest, compare before/after
+    # (same protocol as v1.3-v1.7 in STRATEGY-NOTES.md), and NEVER claim this
+    # improves anything until that backtest exists. Flip the flag on only to
+    # test it; leave off otherwise so behavior is unchanged from v1.7.
+    enable_portfolio_risk_cap = False  # DO NOT set True without backtesting first
+    portfolio_risk_cap_pct = 0.06  # max combined risk (stake * stop-distance) as a fraction of total wallet
+
     # --- Volatility-aware position sizing (v1.6) --------------------------
     # Risk policy, NOT a signal knob — deliberately not hyperopted so it can't
     # be overfit. When the entry candle's ATR% (atr / price) is elevated, take
@@ -304,6 +320,48 @@ class MultiConfirmationStrategy(IStrategy):
         # Respect freqtrade's minimum tradeable stake.
         if min_stake is not None and stake < min_stake:
             stake = min_stake
+
+        if self.enable_portfolio_risk_cap:
+            stake = self._apply_portfolio_risk_cap(stake, current_rate, atr_pct, min_stake)
+
+        return stake
+
+    def _apply_portfolio_risk_cap(
+        self, stake: float, current_rate: float, entry_atr_pct: float, min_stake
+    ) -> float:
+        """
+        Second-pass cap on top of the per-trade vol-haircut: shrink further if
+        this trade would push combined open-risk (stake * stop-distance,
+        summed across all open trades) above `portfolio_risk_cap_pct` of total
+        wallet. Existing trades are never touched — only the new trade's stake
+        is reduced, never increased. UNVALIDATED — see class docstring flag.
+        """
+        from freqtrade.persistence import Trade
+
+        try:
+            total_wallet = self.wallets.get_total_stake_amount() if self.wallets else None
+        except Exception:
+            total_wallet = None
+        if not total_wallet or total_wallet <= 0:
+            return stake  # can't compute a meaningful cap — leave sizing untouched
+
+        existing_risk = 0.0
+        for trade in Trade.get_open_trades():
+            if trade.stop_loss and trade.open_rate:
+                stop_frac = abs(trade.open_rate - trade.stop_loss) / trade.open_rate
+            else:
+                stop_frac = abs(self.stoploss)  # fallback: static -10% backstop
+            existing_risk += trade.stake_amount * stop_frac
+
+        new_trade_stop_frac = entry_atr_pct * float(self.atr_stop_mult.value)
+        cap_amount = self.portfolio_risk_cap_pct * total_wallet
+        headroom = cap_amount - existing_risk
+        if headroom <= 0 or new_trade_stop_frac <= 0:
+            return min_stake if min_stake is not None else stake  # smallest tradeable size, never zero/blocked here
+
+        max_stake_for_headroom = headroom / new_trade_stop_frac
+        if max_stake_for_headroom < stake:
+            stake = max(max_stake_for_headroom, min_stake or 0.0)
         return stake
 
     # ----------------------------------------------------------------------
