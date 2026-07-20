@@ -228,6 +228,24 @@ sideways ones — which is the majority of the time. Two filters address this:
 - Hyperopt parameters defined for buy/sell spaces.
 - Status: ready for backtesting + paper trading.
 
+### Dry-run drought diagnosis (2026-07-20/21)
+- Zero trades since pairlist expansion (Jul 14, ff2fa1f) despite 8 whitelisted pairs. Investigated
+  live: EC2 `jamtrade-dryrun.service` log confirms whitelist loaded correctly (8 pairs), bot
+  RUNNING, no errors — just heartbeats, zero "Executing"/enter events.
+- Cross-checked with `signal_advisor.py` locally (Binance proxy data, Kraken unreachable from
+  this network/timeout — Binance/majors correlate closely enough for diagnosis): all 8 pairs
+  ADX 11–21 (below the 22 threshold, all "choppy/no-trade zone"), buy_score capped at 2/6
+  (`trend` + `macd_up` fire; `rsi<38`, `below_BB`, `vol_spike` never fire — RSI sitting
+  40–64 mid-range, no dip anywhere).
+- Root cause: not a pairlist-size problem. Crypto majors are correlated — when the market-wide
+  regime is choppy/sideways with no capitulation, ALL pairs fail the same gates simultaneously,
+  regardless of whitelist size. The Jul 14 fix (widening from 3→8 pairs) targeted the wrong
+  layer; it helps when pairs diverge, not when the whole market sits in one regime.
+- Verdict: **not a bug.** Strategy is a regime-selective dip-buyer by design (see v1.5 finding:
+  L5/volume fires on 100% of real entries — hard gate, rare). Zero trades in a rangebound,
+  non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
+  change made. Re-check if drought extends multiple weeks with no regime shift.
+
 <!-- Add new entries above this line. Template:
 ### vX.Y — short title (date)
 - What changed and why.
