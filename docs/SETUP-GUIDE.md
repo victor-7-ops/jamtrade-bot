@@ -50,9 +50,20 @@ cp config-dryrun.json user_data/config.json
 ## Step 3 — Download historical data (for backtesting first)
 
 ```bash
+bash scripts/download-data.sh
+```
+
+That wrapper passes `--config user_data/config-dryrun.json` and nothing else, so the
+exchange and the pair list both come from the config itself. Do not pass `--exchange`
+by hand: Freqtrade stores data under `user_data/data/<exchange>/` and reads it back
+using the *config's* exchange, so a mismatch leaves backtests staring at an empty
+directory.
+
+The equivalent raw command:
+
+```bash
 freqtrade download-data \
-  --exchange binance \
-  --pairs BTC/USDT ETH/USDT SOL/USDT BNB/USDT \
+  --config user_data/config-dryrun.json \
   --timeframe 4h 1d \
   --timerange 20230101-
 ```
