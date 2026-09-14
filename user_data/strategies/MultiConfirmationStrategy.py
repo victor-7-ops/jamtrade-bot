@@ -2,8 +2,15 @@
 """
 MultiConfirmationStrategy
 =========================
-A 6-layer multi-confirmation strategy with ADX regime filtering and
+A 5-layer multi-confirmation strategy with ADX regime filtering and
 ATR-based trailing stops, ported from StrategyLab Pro.
+
+⚠️  THRESHOLDS BELOW ARE THE CLASS DEFAULTS, NOT NECESSARILY WHAT RUNS.
+    Freqtrade auto-loads `MultiConfirmationStrategy.json` (the hyperopt export
+    sitting next to this file) and those values OVERRIDE the defaults declared
+    here. As of the 2026-06-03 export the live thresholds are RSI 32, ADX 25,
+    volume 1.8x, BB 1.8 std, sell RSI 80, ATR mult 3.9. Check that file — or
+    the startup log — before reasoning about what the bot will actually do.
 
 ⚠️  IMPORTANT — READ BEFORE USING:
     - This is for DRY-RUN (paper trading) and education first.
@@ -13,26 +20,28 @@ ATR-based trailing stops, ported from StrategyLab Pro.
     - Past/backtest performance does not predict future results.
     - Only ever risk money you can afford to lose entirely.
 
-Confirmation layers (need >= 3 to enter long):
-    L1: Price above EMA50            (trend)
-    L2: RSI < 38                     (momentum / oversold)
-    L3: MACD histogram > 0           (momentum shift up)
-    L4: Close below lower Bollinger  (price at value)
-    L5: Volume > 1.4x its 20-SMA     (conviction)
+Confirmation layers (need >= buy_min_score to enter long; default 3 of 5):
+    L1: Price above EMA50                  (trend)
+    L2: RSI < buy_rsi                      (momentum / oversold)
+    L3: MACD histogram > 0                 (momentum shift up)
+    L4: Close below lower Bollinger        (price at value)
+    L5: Volume > buy_vol_mult x its 20-SMA (conviction)
 
     (v1.7 removed L6 "bullish RSI divergence": v1.5 attribution showed it fired
      on exactly one trade in 2.5 years and that trade hit the full -10% stop.
      Too rare to confirm anything; dropped as noise. See STRATEGY-NOTES.md.)
 
-Gating filters (ALL must pass):
-    - ADX >= threshold               (only trade when a trend exists)
-    - Higher-timeframe (1d) uptrend  (informative pair, optional)
+Gating filters (ALL must pass — these FAIL CLOSED, see populate_entry_trend):
+    - ADX >= buy_adx_min             (only trade when a trend exists)
+    - Daily EMA50 uptrend            (higher-timeframe agreement)
+    - Daily EMA200 macro gate        (blocks entries in sustained bear markets)
 
 Exits:
-    - ATR trailing stop (2.5x ATR)
-    - Indicator-based exit (RSI > 68 + MACD down + above upper BB; >=2 agree)
+    - ATR trailing stop (atr_stop_mult x ATR)
+    - Indicator-based exit (RSI > sell_rsi + MACD down + above upper BB; >=2 agree)
 """
 
+import logging
 from datetime import datetime
 from functools import reduce
 
@@ -47,6 +56,8 @@ from freqtrade.strategy import (
     DecimalParameter,
     informative,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MultiConfirmationStrategy(IStrategy):
@@ -78,8 +89,31 @@ class MultiConfirmationStrategy(IStrategy):
     # Only act on new candles; don't thrash intra-candle.
     process_only_new_candles = True
 
-    # Require the candle to actually close before trusting the signal.
-    startup_candle_count: int = 200
+    # Warmup before signals are trusted. Freqtrade applies this count to EACH
+    # timeframe in its own units, so the old value of 200 gave the 1d
+    # informative only 200 daily candles — and `recursive-analysis` shows that
+    # is past the cliff, not merely tight:
+    #
+    #   Indicators |    199 |    399 | 400 (strategy) |    499 |    999 |   1999
+    #   ema200_1d  |   nan% | 0.122% |         0.142% | 0.113% | -0.001%| -0.001%
+    #   above_ema200_1d | nan% |   -   |            -   |    -   |    -   |    -
+    #
+    # At 199 candles EMA200 is NOT COMPUTABLE — nan — which makes the derived
+    # `above_ema200_1d` gate nan too. A nan comparison is False, so the macro
+    # gate silently blocks every entry rather than passing them. 200 sat one
+    # candle off that edge.
+    #
+    # 400 puts it safely on the defined side with 0.14% residual drift versus a
+    # 1999-candle reference. Full convergence needs ~999, but that would demand
+    # ~2.7 years of daily history before any backtest window and the gate only
+    # consumes EMA200 as a binary `close > ema200` test — 0.14% only changes the
+    # answer when price sits within 0.14% of the line. Not worth the history.
+    #
+    # Validated 2026-09-14 (freqtrade 2026.8, Binance data): backtest over
+    # 20230101-20250601 reproduces backtest_baseline.json exactly (106 trades,
+    # 53.8% win, 1.71% avg, 2.64% DD), and a controlled A/B at 200 vs 400 over
+    # 20240301-20250601 is byte-identical. No regression.
+    startup_candle_count: int = 400
 
     # Order types — use limit orders to reduce slippage in dry-run/live.
     order_types = {
@@ -215,11 +249,34 @@ class MultiConfirmationStrategy(IStrategy):
 
         # Gating filters
         regime_ok = dataframe["adx"] >= self.buy_adx_min.value
-        # Higher-timeframe uptrend (column auto-created by @informative)
-        htf_ok = dataframe.get("uptrend_1d", 1) == 1
-        # Macro regime: BTC daily close must be above its 200-period EMA.
-        # Defaults to 1 (allow) if 1d data is unavailable — graceful degradation.
-        macro_ok = dataframe.get("above_ema200_1d", 1) == 1
+
+        # Higher-timeframe gates (columns auto-created by @informative("1d")):
+        #   uptrend_1d      — daily close above daily EMA50
+        #   above_ema200_1d — daily close above daily EMA200 (macro regime)
+        #
+        # These FAIL CLOSED. An earlier version used
+        # `dataframe.get("above_ema200_1d", 1) == 1`, which defaults to "allow"
+        # when the column is missing — so a broken informative merge silently
+        # deletes the macro filter and the bot starts buying in exactly the
+        # sustained bear markets this gate exists to sit out, with nothing in
+        # the logs. A risk gate that can vanish without a sound is not a risk
+        # gate. If the data isn't there, take no trades and say so loudly.
+        htf_cols = ("uptrend_1d", "above_ema200_1d")
+        missing = [c for c in htf_cols if c not in dataframe.columns]
+        if missing:
+            logger.warning(
+                "%s: higher-timeframe column(s) %s missing — BLOCKING all entries "
+                "for this pair. The 1d informative data failed to merge; check that "
+                "1d candles are downloaded/available. (Entries stay blocked rather "
+                "than silently trading without the macro gate.)",
+                metadata.get("pair", "?"),
+                ", ".join(missing),
+            )
+            htf_ok = pd.Series(False, index=dataframe.index)
+            macro_ok = pd.Series(False, index=dataframe.index)
+        else:
+            htf_ok = dataframe["uptrend_1d"] == 1
+            macro_ok = dataframe["above_ema200_1d"] == 1
 
         conditions = [
             dataframe["buy_score"] >= self.buy_min_score.value,
