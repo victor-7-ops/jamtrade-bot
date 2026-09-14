@@ -6,7 +6,7 @@
 # trading lose money.
 set -euo pipefail
 
-CONFIG="user_data/config-dryrun.json"
+CONFIG="${JAMTRADE_CONFIG:-user_data/config-backtest.json}"
 STRATEGY="MultiConfirmationStrategy"
 TIMERANGE="${1:-20240101-20250101}"
 

@@ -1,0 +1,113 @@
+{
+    "$schema": "https://schema.freqtrade.io/schema.json",
+
+    "//  ───────────────────────────────────────────────────────────────": "",
+    "//  BACKTEST / VALIDATION CONFIG — HISTORICAL DATA ONLY, NEVER TRADES": "",
+    "//": "",
+    "//  Why this file exists, separate from config-dryrun.json:": "",
+    "//    The LIVE VENUE and the HISTORICAL DATA SOURCE are different": "",
+    "//    concerns and must not share one setting.": "",
+    "//      * Live/dry-run runs on Kraken, because Binance returns HTTP 451": "",
+    "//        to the EC2 host's US IP (see docs/AWS-DEPLOY.md).": "",
+    "//      * Backtests run on Binance history, because that is the venue": "",
+    "//        every documented result in docs/STRATEGY-NOTES.md was produced": "",
+    "//        on — and because Binance offers far deeper OHLCV history than": "",
+    "//        Kraken's public OHLC endpoint.": "",
+    "//    Freqtrade stores and reads candles under user_data/data/<exchange>/,": "",
+    "//    so the exchange name here decides which directory is read. Pointing": "",
+    "//    a backtest at the live config silently reads an EMPTY directory and": "",
+    "//    reports 'no data' (or worse, a partial window).": "",
+    "//": "",
+    "//  dry_run stays true here purely as a belt-and-braces guard. Backtesting": "",
+    "//  never places orders, and this file must never be passed to `trade`.": "",
+    "//  ───────────────────────────────────────────────────────────────": "",
+
+    "dry_run": true,
+    "dry_run_wallet": 1000,
+
+    "max_open_trades": 3,
+    "stake_currency": "USDT",
+    "stake_amount": 100,
+    "tradable_balance_ratio": 0.99,
+    "fiat_display_currency": "USD",
+    "timeframe": "4h",
+
+    "trading_mode": "spot",
+    "margin_mode": "",
+
+    "unfilledtimeout": {
+        "entry": 10,
+        "exit": 10,
+        "exit_timeout_count": 0,
+        "unit": "minutes"
+    },
+
+    "entry_pricing": {
+        "price_side": "other",
+        "use_order_book": true,
+        "order_book_top": 1,
+        "price_last_balance": 0.0,
+        "check_depth_of_market": {
+            "enabled": false,
+            "bids_to_ask_delta": 1
+        }
+    },
+
+    "exit_pricing": {
+        "price_side": "other",
+        "use_order_book": true,
+        "order_book_top": 1
+    },
+
+    "exchange": {
+        "//  Historical data source. No keys: backtesting reads local files.": "",
+        "name": "binance",
+        "key": "",
+        "secret": "",
+        "ccxt_config": {},
+        "ccxt_async_config": {},
+
+        "//  Only pairs with local history are listed. The live whitelist also": "",
+        "//  carries ADA/XRP/LINK/DOT/AVAX (added 2026-07-14); backtesting them": "",
+        "//  needs their candles downloaded first — re-run download-data.sh from": "",
+        "//  a network that can reach the exchange, then add them here.": "",
+        "//  BNB is deliberately absent: it is blacklisted on the live side, so": "",
+        "//  including it would backtest a pair the bot will never trade.": "",
+        "pair_whitelist": [
+            "BTC/USDT",
+            "ETH/USDT",
+            "SOL/USDT"
+        ],
+        "pair_blacklist": [
+            "BNB/.*",
+            ".*UP/USDT",
+            ".*DOWN/USDT",
+            ".*BULL/USDT",
+            ".*BEAR/USDT"
+        ]
+    },
+
+    "pairlists": [
+        {
+            "method": "StaticPairList"
+        }
+    ],
+
+    "telegram": {
+        "enabled": false,
+        "token": "",
+        "chat_id": ""
+    },
+
+    "//  No api_server block: backtesting never serves an API, and the schema": "",
+    "//  requires real credentials in the block even when it is disabled.": "",
+    "//  See the long note in config-dryrun.json.": "",
+
+    "bot_name": "StrategyLab-Backtest",
+    "initial_state": "stopped",
+    "force_entry_enable": false,
+
+    "internals": {
+        "process_throttle_secs": 5
+    }
+}
