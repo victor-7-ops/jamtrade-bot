@@ -118,34 +118,45 @@ Without it, a silent crash looks like "no signals" — you won't know until you 
 nano ~/.env
 ```
 
-Add:
+Add both naming schemes. `TG_*` is what `signal_advisor.py` and `healthcheck.sh`
+read directly; `FREQTRADE__*` is how Freqtrade itself takes overrides (it merges
+any `FREQTRADE__`-prefixed variable over the config file, `__` being the nesting
+separator). The token value is the same in both.
+
 ```
 TG_TOKEN=your_bot_token_from_botfather
 TG_CHAT_ID=your_chat_id
+FREQTRADE__TELEGRAM__ENABLED=true
+FREQTRADE__TELEGRAM__TOKEN=your_bot_token_from_botfather
+FREQTRADE__TELEGRAM__CHAT_ID=your_chat_id
 ```
 
 ```bash
 chmod 600 ~/.env
 ```
 
-Then enable Telegram in `user_data/config-dryrun.json`:
+**Leave `user_data/config-dryrun.json` alone.** It ships with
+
 ```json
-"telegram": {
-    "enabled": true,
-    "token": "",
-    "chat_id": ""
-}
+"telegram": { "enabled": false, "token": "", "chat_id": "" }
 ```
 
-Wait — don't put secrets in the config file. Instead, the systemd service loads `~/.env`
-via `EnvironmentFile=`. Update `config-dryrun.json` to read from env:
+and the three `FREQTRADE__TELEGRAM__*` variables above override all of it at startup.
 
-```json
-"telegram": {
-    "enabled": true,
-    "token": "${TG_TOKEN}",
-    "chat_id": "${TG_CHAT_ID}"
-}
+> ⚠️ Do **not** write `"token": "${TG_TOKEN}"` into the config. Freqtrade does not
+> expand `${VAR}` placeholders inside config JSON — it reads the literal string
+> `${TG_TOKEN}` as your token and fails. (This is also why the config must never be
+> marked `git update-index --skip-worktree` to hide edited secrets: that silently
+> desyncs the server from git and makes the next `git pull` a landmine. Secrets belong
+> in `~/.env`, which is gitignored; the config stays byte-identical to the repo.)
+
+If a previous deploy did set `skip-worktree` on that file, clear it once the env
+vars are in place:
+
+```bash
+cd ~/jamtrade-bot
+git update-index --no-skip-worktree user_data/config-dryrun.json
+git checkout -- user_data/config-dryrun.json
 ```
 
 Then restart the service:
