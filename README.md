@@ -10,8 +10,8 @@ Currently in the **paper-trading / development** phase.
 
 ## The Strategy
 
-A long-only multi-confirmation system. An entry requires **at least 3 of 6** signal layers
-to agree, AND two gating filters to pass.
+A long-only multi-confirmation system. An entry requires **at least 3 of 5** signal layers
+to agree, AND all three gating filters to pass.
 
 **Signal layers** (≥3 required to enter)
 1. Price above EMA50 (trend)
@@ -28,8 +28,13 @@ to agree, AND two gating filters to pass.
 - Daily EMA200 macro gate (blocks entries in sustained bear markets)
 
 **Exits**
-- ATR-based trailing stop (2.5× ATR) — locks in profit, adapts to volatility
-- Indicator exit (RSI > 68 + MACD down + above upper BB; ≥2 must agree)
+- ATR-based trailing stop (3.9× ATR) — locks in profit, adapts to volatility
+- Indicator exit (RSI > 80 + MACD down + above upper BB; ≥2 must agree)
+
+> Thresholds above are the **hyperopt-tuned** values from
+> `user_data/strategies/MultiConfirmationStrategy.json`, which Freqtrade loads at
+> startup and which override the defaults written in the strategy class. That file
+> is the single source of truth — `scripts/signal_advisor.py` reads it too.
 
 See `docs/STRATEGY-NOTES.md` for the full breakdown and development log.
 

@@ -246,6 +246,69 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Audit fixes (2026-09-14) — warmup + fail-closed gates
+
+Repo-wide audit. Two changes here affect strategy behaviour; the rest were config/tooling.
+
+**`startup_candle_count` 200 → 400 — VALIDATED, and the old value was over a cliff.**
+Freqtrade applies this count to each timeframe in its own units, so 200 gave the 1d
+informative only 200 daily candles. `recursive-analysis` (freqtrade 2026.8) shows what
+that actually meant:
+
+```
+Indicators      |    199 |   399  | 400 (strategy) |   499  |   999   |  1999
+ema200_1d       |   nan% | 0.122% |         0.142% | 0.113% | -0.001% | -0.001%
+above_ema200_1d |   nan% |    -   |             -  |    -   |    -    |    -
+```
+
+At 199 candles the daily EMA200 is **not computable — nan** — which makes the derived
+`above_ema200_1d` gate nan as well. A nan comparison evaluates False, so in that state the
+macro gate does not "allow by default", it **silently blocks every entry**. The old setting
+sat one candle off that edge.
+
+400 is on the defined side with 0.14% residual drift vs a 1999-candle reference. Full
+convergence needs ~999 candles, but that demands ~2.7 years of daily history ahead of any
+backtest window, and the gate only consumes EMA200 as a binary `close > ema200` test —
+0.14% changes the answer only when price is within 0.14% of the line. Not worth the cost.
+
+Validation (2026-09-14, freqtrade 2026.8, Binance data, local venv):
+- `lookahead-analysis`: **no bias** — 0 biased entry signals, 0 biased exit, 0 biased
+  indicators across 20 signals.
+- Backtest 20230101-20250601 reproduces `backtest_baseline.json` **exactly**: 106 trades,
+  53.8% win, 1.71% avg profit, 2.64% max drawdown, 19.03% total. No regression from any
+  change in this batch.
+- Controlled A/B on 20240301-20250601 (a window where 400 candles of warmup genuinely fit),
+  startup 200 vs 400, cache disabled: **byte-identical** — 59 trades, 1.43% avg, 9.31%
+  total, 2.89% DD. In a strong uptrend price sits far enough above EMA200 that seed bias
+  never flips the boolean; the fix removes a latent failure mode rather than changing
+  present-day results.
+
+**This reopens the Jul-2026 drought question.** The 2026-07-20/21 entry below concluded
+"not a bug — choppy regime", reasoning from ADX readings taken with `signal_advisor.py`.
+That tool was independently broken at the time (see below), and we now know the macro gate
+can hard-block on nan rather than degrade gracefully. Whether the live bot's daily frame
+was actually short enough to trigger that is **untested** — it needs OHLCV past 2026-06-03,
+which no reachable exchange currently provides from this network. Re-check when data
+allows; the regime explanation may be correct, incomplete, or wrong.
+
+**Higher-timeframe gates now fail CLOSED.**
+`populate_entry_trend` used `dataframe.get("above_ema200_1d", 1) == 1`, which defaults to
+*allow* when the column is absent. A broken informative merge would therefore delete the
+macro filter silently and the bot would start buying in exactly the sustained bear markets
+the gate exists to avoid — with nothing in the logs. Missing 1d columns now block all
+entries for that pair and emit a `logger.warning`. Risk gates must not be able to vanish
+quietly (CLAUDE.md rule 4).
+- No behaviour change on the normal path: when 1d data merges correctly, the logic is
+  identical. This only changes the data-fault path.
+
+**Also relevant to reading older entries:** the advisor (`signal_advisor.py`) had drifted
+from the strategy — it still scored the removed L6 divergence layer, omitted both daily
+gates entirely, and hardcoded thresholds that no longer matched the hyperopt export
+(RSI 38 vs the live 32, ADX 22 vs 25, volume 1.4x vs 1.8x). It now reads
+`MultiConfirmationStrategy.json` directly. The Jul-20/21 drought diagnosis above was made
+with the drifted tool: its ADX conclusion stands, but the quoted "below the 22 threshold"
+was really 25, and the "score capped at 2/6" was on a 6-layer scale the bot no longer uses.
+
 <!-- Add new entries above this line. Template:
 ### vX.Y — short title (date)
 - What changed and why.

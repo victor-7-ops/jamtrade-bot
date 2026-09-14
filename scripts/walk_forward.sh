@@ -21,7 +21,7 @@
 # directly comparable to the documented full-range backtests.
 set -euo pipefail
 
-CONFIG="user_data/config-dryrun.json"
+CONFIG="${JAMTRADE_CONFIG:-user_data/config-backtest.json}"
 STRATEGY="MultiConfirmationStrategy"
 START="${1:-20230101}"
 END="${2:-20250601}"

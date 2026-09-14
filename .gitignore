@@ -8,12 +8,16 @@ config-prod.json
 .env.*
 
 # ── Freqtrade runtime artifacts ────────────────────────────────────────
-user_data/data/            # downloaded OHLCV (large, re-downloadable)
+# NOTE: gitignore has NO inline comments. A trailing "# ..." becomes part of
+# the pattern and silently matches nothing. Keep every comment on its own line.
+# downloaded OHLCV (large, re-downloadable)
+user_data/data/
 user_data/backtest_results/
 user_data/hyperopt_results/
 user_data/logs/
 user_data/plot/
-user_data/tradesv3.sqlite*  # the trade database (incl. dry-run)
+# the trade database (incl. dry-run)
+user_data/tradesv3.sqlite*
 # trade DB at repo root (dry-run journal/WAL/SHM) — own line; inline # is not a comment
 tradesv3*.sqlite*
 *.log
@@ -33,3 +37,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# uv-managed local toolchain
+.python-version

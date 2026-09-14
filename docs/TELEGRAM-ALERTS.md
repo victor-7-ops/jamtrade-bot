@@ -32,15 +32,45 @@ Both use the same Telegram setup below. The difference is just how you run it.
    `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` and find `"chat":{"id":...}`.)
 2. Copy the numeric **chat id**.
 
-## Step 3 — Put them in your config
+## Step 3 — Put them in your environment (never in the config file)
 
-Open `user_data/config-dryrun.json` and update the telegram block:
+`user_data/config-dryrun.json` is **tracked by git**. Never paste a token into it.
+Freqtrade also does not expand `${VAR}` placeholders inside the config, so that
+trick does not work either — the literal string is read as the token and startup fails.
+
+Instead, override the config from the environment. Freqtrade merges any
+`FREQTRADE__`-prefixed variable over the file before validating it, using `__`
+as the nesting separator:
+
+```bash
+export FREQTRADE__TELEGRAM__ENABLED=true
+export FREQTRADE__TELEGRAM__TOKEN="7123456789:AAH..."
+export FREQTRADE__TELEGRAM__CHAT_ID="123456789"
+```
+
+Keep them in a `.env` that git ignores, and lock it down:
+
+```bash
+cp /dev/null .env && chmod 600 .env
+# then add the three lines above (without `export`) and load it:
+set -a; . ./.env; set +a
+```
+
+On the server, point the systemd unit at that file instead of exporting by hand:
+
+```ini
+[Service]
+EnvironmentFile=/opt/jamtrade-bot/.env
+```
+
+Notification verbosity still lives in the config file (no secrets there), under
+the same `telegram` block:
 
 ```json
 "telegram": {
-    "enabled": true,
-    "token": "PASTE_YOUR_TOKEN_HERE",
-    "chat_id": "PASTE_YOUR_CHAT_ID_HERE",
+    "enabled": false,
+    "token": "",
+    "chat_id": "",
     "notification_settings": {
         "status": "on",
         "entry": "on",
@@ -52,9 +82,13 @@ Open `user_data/config-dryrun.json` and update the telegram block:
 }
 ```
 
-> 🔒 Security: the token is a password for your bot. Because `.gitignore` is set up, your
-> real config won't be committed — but double-check before pushing to any public repo.
-> If a token leaks, send `/revoke` to BotFather and generate a new one.
+`enabled: false` is the committed default so a fresh clone starts without secrets;
+`FREQTRADE__TELEGRAM__ENABLED=true` turns it on where the token actually exists.
+
+> 🔒 Security: the token is a password for your bot. `.gitignore` covers `.env`, but it
+> does **not** cover `user_data/config-dryrun.json` — that file is tracked, so anything
+> you type into it gets committed. If a token leaks, send `/revoke` to BotFather and
+> generate a new one.
 
 ## Step 4 — Run it
 
