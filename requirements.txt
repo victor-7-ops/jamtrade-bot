@@ -10,6 +10,15 @@
 
 freqtrade>=2024.1
 
+# Hyperopt only. freqtrade's parallel hyperopt imports cloudpickle from
+# joblib.externals, which joblib 1.6 no longer vendors:
+#   cannot import name 'cloudpickle' from 'joblib.externals'
+# It fails at startup before a single epoch runs. Backtesting and live trading
+# are unaffected, so this only bites when you reach for hyperopt. Verified on
+# freqtrade 2026.8 / joblib 1.6.0 (2026-09-15); drop the pin once freqtrade
+# stops importing it from there.
+joblib<1.6
+
 # Notebook / analysis extras (optional but handy for studying results)
 jupyterlab>=4.0
 matplotlib>=3.7
