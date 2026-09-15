@@ -129,7 +129,25 @@ TG_CHAT_ID=your_chat_id
 FREQTRADE__TELEGRAM__ENABLED=true
 FREQTRADE__TELEGRAM__TOKEN=your_bot_token_from_botfather
 FREQTRADE__TELEGRAM__CHAT_ID=your_chat_id
+HEALTHCHECK_PING_URL=https://hc-ping.com/your-uuid-here
 ```
+
+`HEALTHCHECK_PING_URL` is the dead-man's switch and **must be set on every rebuild**,
+or host-death monitoring silently disappears. Everything else in `healthcheck.sh` runs
+ON this box, so nothing else can report the box itself dying — terminated instance,
+kernel panic, network gone. Inverting the signal fixes that: ping an external watchdog
+on success, and let the watchdog alert when pings stop.
+
+Create a check at healthchecks.io (free tier) with **Period 1 hour, Grace 30 min** to
+match the hourly timer; that pages you within ~90 minutes of the box going dark.
+
+**Verify it is really wired, not just green.** Clicking "Success!" on the healthchecks
+dashboard makes the check green from your *browser* and proves nothing. Run
+`sudo systemctl start jamtrade-healthcheck.service`, then confirm the event log shows a
+POST from the instance's public IP with a `curl` user-agent — not `Mozilla/... Windows`
+from your home IP. Then stop the timer for two hours and confirm the alert email
+actually arrives. An untested alarm is an assumption, and assuming is what produced the
+five-day outage.
 
 ```bash
 chmod 600 ~/.env
