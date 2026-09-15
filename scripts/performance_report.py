@@ -279,7 +279,63 @@ def drift_report(overall: Bucket, baseline: dict) -> list[str]:
                      "that is a successful outcome of paper trading, not a failure.")
     else:
         lines.append("✅ Within thresholds — live behavior roughly consistent with backtest so far.")
+
+    # Both the flag and the tick above compare ABSOLUTE return. That is not the same
+    # question as "is this doing better than the alternative", and conflating the two
+    # is a documented failure in this project: on 2026-09-15 live read "-0.14%/trade,
+    # drifting" over a period in which the market fell 22.68% and the strategy lost
+    # 0.60% -- a 22pp outperformance that every metric here scored as failure.
+    lines.append(
+        "ⓘ Absolute-return comparison only. It does NOT say whether the strategy beat\n"
+        "  holding the coins, or what exposure produced these numbers. A losing month in\n"
+        "  a badly falling market may be a good outcome; a winning month in a rally may\n"
+        "  be a bad one. Check the exposure line above and the buy-and-hold columns in\n"
+        "  walk_forward_report.py before acting on either verdict."
+    )
     return lines
+
+
+def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
+    """
+    Time-in-market: what fraction of the elapsed period capital was actually at risk.
+
+    This is the number that decides how to read every other number in the report.
+    A strategy that sits in cash most of the time will beat a FALLING market almost
+    by construction, and will lag a rising one for the same reason — neither is
+    evidence about the entry logic.
+
+    It also reframes returns: a modest cumulative profit earned at 17% exposure is
+    a very different thing from the same profit earned fully invested, because the
+    idle 83% could have been earning elsewhere. Capital efficiency, not win rate,
+    is often the real constraint on a strategy like this.
+
+    (On 2026-09-15 this project nearly discarded a working regime filter because
+    every metric measured absolute return, and none measured exposure.)
+    """
+    dated = [t for t in trades if t["close_date"]]
+    if not dated or max_open < 1:
+        return []
+    first = min(t["close_date"] for t in dated)
+    last = max(t["close_date"] for t in dated)
+    span_h = (last - first).total_seconds() / 3600.0
+    if span_h <= 0:
+        return []
+
+    held_h = sum(t["duration_h"] for t in trades)
+    exposure = 100.0 * held_h / (span_h * max_open)
+    cum = 100.0 * sum(t["profit"] for t in trades)
+
+    out = [
+        f"Exposure: {exposure:.0f}% of elapsed time with capital at risk "
+        f"(max {max_open} concurrent · {held_h / 24:.0f} trade-days over {span_h / 24:.0f} days)"
+    ]
+    if exposure < 35:
+        out.append(
+            f"  ⓘ Mostly in cash. Read cum {cum:+.2f}% as earned on ~{exposure:.0f}% deployment — "
+            f"the idle remainder earned nothing here.\n"
+            f"    Beating a falling market at this exposure is drawdown avoided, not alpha."
+        )
+    return out
 
 
 def _load_backtest_export(path: str) -> dict:
@@ -354,6 +410,8 @@ def main() -> None:
     ap.add_argument("--db", default=DEFAULT_DB, help=f"Freqtrade sqlite DB (default: {DEFAULT_DB})")
     ap.add_argument("--baseline", default="user_data/backtest_baseline.json",
                     help="baseline JSON for drift check (skipped if missing)")
+    ap.add_argument("--max-open-trades", type=int, default=3,
+                    help="concurrent-trade cap from the config, used for the exposure calc (default: 3)")
     ap.add_argument("--min-trades", type=int, default=2,
                     help="hide tag/exit groups with fewer trades than this (default: 2)")
     ap.add_argument("--make-baseline", metavar="BACKTEST_JSON",
@@ -387,6 +445,7 @@ def main() -> None:
             f"win {overall.win_rate:.0f}% · avg {overall.avg_profit_pct:+.2f}%/trade · "
             f"cum {overall.cum_profit_pct:+.2f}% · maxDD {max_drawdown_pct(trades):.2f}%"
         )
+        lines.extend(exposure_lines(trades, args.max_open_trades))
         lines.append("")
         lines.append("── Entry-tag scoreboard (which layer combos earn) ──")
         lines.extend(fmt_bucket_table(bucketize(trades, "enter_tag"), args.min_trades, "tag"))
