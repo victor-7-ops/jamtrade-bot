@@ -246,6 +246,60 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### CORRECTION (2026-09-15, same day) — the "no edge" verdict below was WRONG
+
+The two entries below conclude "no durable edge, discard rather than defend". That
+conclusion was reached by measuring absolute return against zero. Measured against the
+alternative — holding the same coins — it inverts:
+
+```
+period                    strategy   buy&hold      edge    maxDD
+train 2024-03 -> 2025-03    +8.52%     +5.20%    +3.3pp    2.89%
+test  2025-03 -> 2026-06    -0.60%    -22.68%   +22.1pp    3.88%
+full  2024-03 -> 2026-06    +7.92%    -19.31%   +27.2pp    3.59%
+```
+
+Per walk-forward window, strategy minus buy-and-hold:
+
+```
+w1 +10.9   w2 -20.2   w3  -7.4   w4 +22.8
+w5 -51.6   w6  +6.5   w7 +48.0   w8 +25.8
+```
+
+It **underperforms in rallies and strongly outperforms in crashes**. In w7 the market
+fell 49% and it lost 1.0%. In w8 the market fell 26% and it lost 0.33%. The
+"out-of-sample failure" was -0.60% during a -22.68% market.
+
+This is not a bull-market strategy that stopped working. It is a **low-exposure,
+capital-preserving** system: 0.08 trades/day, max 3 concurrent, mostly in cash, with max
+drawdown between 1.2% and 3.9% in every window while the market swung +52% and -49%.
+The ADX regime gate and daily EMA200 macro gate are doing real work — they keep it out.
+
+**What remains true from the entries below:** absolute return is modest (~3.45%/yr) and
+recently slightly negative, and hyperopt still degraded out-of-sample performance
+(-0.74% vs -0.16% avg per trade), so more tuning is still the wrong move.
+
+**What is now in question is the benchmark, not the strategy.** A system that sits in
+cash most of the time will beat a falling market almost by construction, so buy-and-hold
+is too generous a comparison. The honest benchmark for a mostly-cash strategy is CASH:
++7.92% over 27 months is ~3.45%/yr, which is positive but below what T-bills paid over
+the same period. So:
+
+- As an absolute-return engine: weak. Does not currently justify the operational risk.
+- As a low-beta crypto sleeve / drawdown-avoidance overlay: genuinely doing something,
+  and the evidence for it is consistent across all 8 windows.
+
+Which of those you want determines whether this is worth continuing. That is a goals
+question, not a backtest question.
+
+**Methodological lesson, and the reason this correction exists:** every metric in the
+tooling — avg profit per trade, win rate, the drift check — measures absolute return.
+All of them said "failing" during a period when the strategy beat its alternative by
+22 percentage points. The measurements were not wrong; they were answering a question
+nobody had asked out loud. Benchmark-relative and exposure-adjusted metrics should be
+added to `performance_report.py` and `walk_forward_report.py` before any further
+strategy work.
+
 ### Train/test split (2026-09-15) — the edge does not generalise. VERDICT.
 
 Follow-up to the walk-forward decay. Question: was there ever a real edge that later
