@@ -246,6 +246,52 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Live observations (2026-09-15) — 9 usable trades, NOT yet actionable
+
+First performance report since recovery. **Sample is 11 closed trades, 2 of them outage
+artifacts, spanning two different code versions.** Nothing below justifies a change yet;
+recorded so it can be tested as the sample grows rather than rediscovered later.
+
+**The drift flag fired and should be ignored.** It compares live Kraken trades on current
+code against a Binance backtest of June-era code, at n=11 with 2 corrupted. The reported
+`maxDD -31.42%` is likewise dominated by the artifacts. Incomparable, not alarming.
+
+**Hypothesis 1 — the ATR trail may be too wide.** Every loss came from the trailing stop;
+every win from the indicator exit:
+
+```
+exit_signal          6   83% win   +4.89% avg    47 hrs
+trailing_stop_loss   5    0% win   -6.18% avg   160 hrs
+```
+
+Excluding the two artifacts still leaves 3 trailing-stop trades, all losers, ~-4% each.
+The duration gap is the interesting part: trailing-stop trades run ~3x longer. That is
+the shape you would expect if `atr_stop_mult = 3.9` is wide enough that losers drift for
+days before the stop catches them. Three clean trades cannot establish this — but it is a
+hypothesis with a mechanism, so it is worth watching specifically.
+*Test when n >= 30: does the exit_signal / trailing_stop split persist?*
+
+**Hypothesis 2 — this is a momentum entry, not a dip-buy.** Layer fire rates:
+
+```
+L1 (price > EMA50)   100%      L4 (below lower BB)    9%
+L3 (MACD hist > 0)    91%      L2 (RSI < 32)          0%  — never fired, not once
+L5 (volume > 1.8x)   100%
+```
+
+Entries were `L1+L3+L5` on 10 of 11 trades. With `buy_min_score = 3`, trend + MACD-up +
+volume-spike satisfies the threshold alone, so the dip layers never need to participate.
+The hyperopt export tightened RSI to 32 and volume to 1.8x, which appears to have made the
+dip condition so strict it stopped contributing.
+
+This contradicts the framing in the 2026-07-20/21 entry below, which calls the strategy
+"a regime-selective dip-buyer by design". On the tuned parameters it behaves as a
+momentum-continuation entry. Neither is inherently wrong, but the description and the
+behaviour should agree — and "3 of 5 must agree" is really "these 3 always agree",
+which means the score threshold is not doing the discriminating work it appears to.
+*Do not fix by loosening RSI — that is curve-fitting toward a story. Confirm the fire
+rates hold at n >= 30 first.*
+
 ### Outage 2026-09-09 → 2026-09-14 — bot dead 5 days, 2 trades corrupted
 
 **Read this before interpreting any trade before 2026-09-14.**

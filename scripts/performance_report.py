@@ -43,7 +43,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 
-DEFAULT_DB = "user_data/tradesv3.dryrun.sqlite"
+# Repo root, NOT user_data/. The config sets no db_url, so freqtrade uses its
+# dry-run default of "sqlite:///tradesv3.dryrun.sqlite" — a RELATIVE path, and
+# the systemd unit's WorkingDirectory is the repo root. Pointing at user_data/
+# finds nothing and the report silently looks empty rather than erroring.
+DEFAULT_DB = "tradesv3.dryrun.sqlite"
 
 # Drift thresholds: how far live may drift from the backtest baseline before
 # we flag it. Deliberately loose — small live samples are noisy, and a false
