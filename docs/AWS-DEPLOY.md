@@ -55,7 +55,7 @@ up charges fast.
    - Security group name: `jamtrade-sg`
    - Inbound rule: SSH (22) → Source: **My IP** (auto-fills your current IP)
    - Delete any other default inbound rules (HTTP/HTTPS not needed)
-7. Configure storage: **8 GiB gp3** (default)
+7. Configure storage: **16 GiB gp3** (do NOT accept the 8 GiB default)
 8. **Launch instance**
 9. Wait ~1 min → EC2 → Instances → copy the **Public IPv4 address**
 
@@ -208,8 +208,18 @@ The old DB is preserved — you don't lose paper trade history.
 
 ## Part 8 — Disk space (watch this)
 
-The 8 GiB volume fills up faster than expected — freqtrade logs + the trade DB + pip cache.
-At launch disk was already at ~88% used. Check monthly and rotate logs if needed:
+**The 8 GiB default is not enough. Launch with 16 GiB.**
+
+This caused a real outage. On 2026-09-09 the root disk hit 100%, freqtrade began
+crash-looping on `OSError: [Errno 28] No space left on device`, and it stayed dead for
+**five days** across 9,918 restarts with nobody notified. One position exited at -14.06%
+against a -10% stoploss, because a dead bot enforces no stop at all.
+
+It was not a leak. A 6.7 GiB root carrying a 2 GiB swapfile and a ~900 MB venv leaves
+about 1 GiB of working room, and Ubuntu's own apt/snap housekeeping churns ~150 MB/day.
+At ~88% on day one it was always going to tip. The fix is headroom, not vigilance.
+
+Check periodically and rotate logs if needed:
 
 ```bash
 # Check usage
@@ -225,7 +235,26 @@ tail -n 50000 ~/jamtrade-bot/user_data/logs/dryrun.log > /tmp/dryrun.log.tmp && 
 pip cache purge
 ```
 
-If consistently > 90%, expand the EBS volume in EC2 console (Storage → Modify → increase to 16GB → `sudo resize2fs /dev/root`).
+### Expanding the volume
+
+`resize2fs` alone is NOT enough — the partition has to grow first, or resize2fs reports
+"Nothing to do!" and nothing changes.
+
+1. EC2 console → **Elastic Block Store → Volumes** → select the attached volume
+2. **Actions → Modify volume** → set the new size → **Modify**, then confirm in the
+   SECOND dialog (dismissing it cancels silently, with no error)
+3. Wait until `lsblk` on the box reports the new disk size. If it lags, force a rescan:
+   `echo 1 | sudo tee /sys/class/block/nvme0n1/device/rescan_controller`
+4. Grow partition, then filesystem (note the SPACE before the partition number):
+
+```bash
+sudo growpart /dev/nvme0n1 1
+sudo resize2fs /dev/nvme0n1p1
+df -h /
+```
+
+Device is `nvme0n1` on Nitro instances (t3+) and `xvda` on older ones — check `lsblk`
+first. Both steps run online; the bot keeps trading throughout.
 
 ---
 
@@ -238,7 +267,7 @@ sudo apt-get update && sudo apt-get upgrade -y
 # Service alive?
 sudo systemctl is-active jamtrade-dryrun
 
-# Disk usage (8GB is plenty but worth checking)
+# Disk usage — alert threshold is 85%; see Part 8 before dismissing a high reading
 df -h /
 
 # Swap usage (shouldn't be > 50% regularly; if so, consider upgrading instance)
