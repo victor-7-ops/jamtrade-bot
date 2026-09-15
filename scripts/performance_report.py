@@ -140,6 +140,7 @@ def load_closed_trades(db_path: str) -> list[dict]:
                 "exit_reason": r["exit_reason"] or "(unknown)",
                 "profit": float(r["close_profit"]),
                 "duration_h": duration_h,
+                "open_date": od,
                 "close_date": cd,
             }
         )
@@ -312,10 +313,13 @@ def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
     (On 2026-09-15 this project nearly discarded a working regime filter because
     every metric measured absolute return, and none measured exposure.)
     """
-    dated = [t for t in trades if t["close_date"]]
+    dated = [t for t in trades if t["close_date"] and t.get("open_date")]
     if not dated or max_open < 1:
         return []
-    first = min(t["close_date"] for t in dated)
+    # Span runs from the first OPEN, not the first close. Measuring from the first
+    # close ignores however long the earliest trades were already running and
+    # shrinks the denominator, overstating exposure.
+    first = min(t["open_date"] for t in dated)
     last = max(t["close_date"] for t in dated)
     span_h = (last - first).total_seconds() / 3600.0
     if span_h <= 0:
@@ -329,6 +333,26 @@ def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
         f"Exposure: {exposure:.0f}% of elapsed time with capital at risk "
         f"(max {max_open} concurrent · {held_h / 24:.0f} trade-days over {span_h / 24:.0f} days)"
     ]
+
+    # Outlier durations usually mean the bot could not act, not that the strategy
+    # chose to hold. The 2026-09-09 outage left two positions open for five days
+    # with nothing running; counting that as "exposure" inflates the number and
+    # tells you about downtime rather than about the strategy.
+    if len(dated) >= 4:
+        durations = sorted(t["duration_h"] for t in dated)
+        median_h = durations[len(durations) // 2]
+        stuck = [t for t in dated if median_h > 0 and t["duration_h"] > 4 * median_h]
+        if stuck:
+            stuck_h = sum(t["duration_h"] for t in stuck)
+            adj = 100.0 * (held_h - stuck_h) / (span_h * max_open)
+            out.append(
+                f"  ⚠️ {len(stuck)} trade(s) ran >4x the median duration "
+                f"({stuck_h / 24:.0f} of {held_h / 24:.0f} trade-days). If the bot was down, that is "
+                f"involuntary exposure, not strategy behaviour.\n"
+                f"    Excluding them: ~{adj:.0f}%. Check STRATEGY-NOTES for outage windows before "
+                f"trusting either figure."
+            )
+
     if exposure < 35:
         out.append(
             f"  ⓘ Mostly in cash. Read cum {cum:+.2f}% as earned on ~{exposure:.0f}% deployment — "
