@@ -61,6 +61,16 @@ hyperopt result can't reproduce its edge on data it never saw, throw it out.
 - [ ] The capital is money you can lose **entirely** without affecting your life
 - [ ] You've decided your max loss limit *in advance* and how you'll stop
 - [ ] You're treating this as paid education, not as income
+- [ ] **Uptime monitoring is live and you have tested that it actually pages you.**
+      Not ops hygiene — a *risk control*. `stoploss = -0.10` is only enforced while
+      the process is alive: the ATR trailing stop is evaluated when the bot processes
+      a candle, so a dead bot enforces no stop at all. The 2026-09-09 outage exited a
+      position at **-14.06%** on a strategy whose hard floor is -10%, purely because
+      nothing was running for five days. With real capital, a silent death converts
+      your bounded max loss into an unbounded one. Verify: `jamtrade-healthcheck.timer`
+      active, and deliberately trip it once to confirm the Telegram message arrives.
+- [ ] You know how you'll be alerted if the VM dies entirely (the healthcheck runs
+      *on* the box, so it cannot report its own host being down)
 
 ### When you do go live
 

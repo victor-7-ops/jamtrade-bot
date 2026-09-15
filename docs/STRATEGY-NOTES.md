@@ -246,6 +246,47 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Outage 2026-09-09 → 2026-09-14 — bot dead 5 days, 2 trades corrupted
+
+**Read this before interpreting any trade before 2026-09-14.**
+
+The EC2 root disk filled. freqtrade crash-looped on
+`OSError: [Errno 28] No space left on device` (and sqlite `disk I/O error`) for
+roughly five days — **9,918 restarts** — with no notification. Recovered 2026-09-14.
+
+Not a leak: the box is a 6.7 GB root carrying a 2 GB swapfile and a 918 MB venv,
+leaving ~1 GB of working room, and Ubuntu's own apt/snap housekeeping churns
+~150 MB/day. It was always going to tip eventually. Fixed by reclaiming caches,
+halving the swapfile (2G→1G) and capping journald; 93% → 78% free.
+
+**Two trades are artifacts of the outage and must be excluded from analysis:**
+
+| id | pair | exit | reason |
+|----|------|------|--------|
+| 10 | BTC/USDT | -4.92% | trailing_stop_loss |
+| 11 | LINK/USDT | **-14.06%** | trailing_stop_loss |
+
+LINK exited **past the -10% hard stoploss**. That is not a strategy result. The ATR
+trailing stop is only evaluated when the bot processes a candle, so while the process
+was dead no stop existed at all; on restart it exited at whatever price had become.
+Usable sample is **9 trades**, not 11.
+
+The general lesson, now in the Phase 4 gate: **uptime monitoring is a risk control
+for this project, not ops hygiene.** A dead bot converts a bounded max loss into an
+unbounded one. `healthcheck.sh` was rewritten (it had been watching the advisor timer
+and never the bot, the disk, or progress) and now runs hourly on a systemd timer.
+
+A second, separate bug surfaced during recovery: ccxt returns `taker=None` for Kraken
+per-market fees, so freqtrade died with `TypeError: float * NoneType` on the first
+market order — i.e. on the first stoploss exit. Fee is now pinned in the config. Note
+the shape: entries are limit orders and worked fine, so the bot appeared healthy right
+up until the moment it needed to cut a loss.
+
+**Restart boundary: 2026-09-14 07:40 UTC.** Trades after this run the caught-up
+strategy (the box had been stuck at the PR #1 merge since June — it was running
+neither v1.7 nor v1.8 — plus startup_candle_count 400 and the fail-closed HTF gates).
+Do not compare trades across that line.
+
 ### Audit fixes (2026-09-14) — warmup + fail-closed gates
 
 Repo-wide audit. Two changes here affect strategy behaviour; the rest were config/tooling.
