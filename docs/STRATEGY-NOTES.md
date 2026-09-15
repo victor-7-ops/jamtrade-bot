@@ -271,26 +271,36 @@ days before the stop catches them. Three clean trades cannot establish this — 
 hypothesis with a mechanism, so it is worth watching specifically.
 *Test when n >= 30: does the exit_signal / trailing_stop split persist?*
 
-**Hypothesis 2 — this is a momentum entry, not a dip-buy.** Layer fire rates:
+**Hypothesis 2 — CORRECTED, and it is weaker than it first looked.** Live layer fire
+rates across the 11 trades:
 
 ```
 L1 (price > EMA50)   100%      L4 (below lower BB)    9%
-L3 (MACD hist > 0)    91%      L2 (RSI < 32)          0%  — never fired, not once
+L3 (MACD hist > 0)    91%      L2 (RSI < 32)          0%
 L5 (volume > 1.8x)   100%
 ```
 
-Entries were `L1+L3+L5` on 10 of 11 trades. With `buy_min_score = 3`, trend + MACD-up +
-volume-spike satisfies the threshold alone, so the dip layers never need to participate.
-The hyperopt export tightened RSI to 32 and volume to 1.8x, which appears to have made the
-dip condition so strict it stopped contributing.
+The initial read was "L2 never fires, so on tuned parameters this is a momentum entry,
+not the dip-buyer the notes describe". **That was overreach from an 11-trade sample.**
+The regenerated baseline (92 trades, same code, 2024-03 to 2026-06) shows:
 
-This contradicts the framing in the 2026-07-20/21 entry below, which calls the strategy
-"a regime-selective dip-buyer by design". On the tuned parameters it behaves as a
-momentum-continuation entry. Neither is inherently wrong, but the description and the
-behaviour should agree — and "3 of 5 must agree" is really "these 3 always agree",
-which means the score threshold is not doing the discriminating work it appears to.
-*Do not fix by loosening RSI — that is curve-fitting toward a story. Confirm the fire
-rates hold at n >= 30 first.*
+```
+63  L1+L3+L5   (momentum: trend + MACD + volume)
+26  L2+L4+L5   (dip: oversold + below-BB + volume)   <- 28% of entries
+ 3  L1+L4+L5
+```
+
+So L2 fires regularly on current parameters — roughly 28% of entries are genuine dip
+buys. The live sample simply contained none of them. At a 28% base rate, eleven
+consecutive non-dip entries is uncommon (~2.5%) but not extraordinary, and it may also
+reflect venue or regime rather than anything structural.
+
+What survives: the strategy has **two distinct entry modes**, not one, and the live
+sample so far has exercised only the momentum mode. Worth tracking whether the dip mode
+shows up as the sample grows, and whether the two modes perform differently — the
+backtest tags make that measurable. What does NOT survive is the claim that the dip
+layers are dead.
+*Do not loosen RSI. The dip condition works in backtest; the live sample is just small.*
 
 ### Outage 2026-09-09 → 2026-09-14 — bot dead 5 days, 2 trades corrupted
 

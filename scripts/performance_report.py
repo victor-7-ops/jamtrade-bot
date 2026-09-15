@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import sqlite3
+import zipfile
 import sys
 import urllib.parse
 import urllib.request
@@ -281,10 +282,37 @@ def drift_report(overall: Bucket, baseline: dict) -> list[str]:
     return lines
 
 
+def _load_backtest_export(path: str) -> dict:
+    """
+    Read a freqtrade backtest export, which may be a .json or a .zip.
+
+    Freqtrade changed the export format: older versions wrote a bare
+    backtest-result-<ts>.json, newer ones (verified on 2026.8) write a
+    backtest-result-<ts>.zip bundling the result JSON alongside the config,
+    a copy of the strategy, and wallet/market feathers. Accept either, and
+    accept being handed the .json name when only the .zip exists — that is
+    the path freqtrade prints, so it is the one people will paste.
+    """
+    if path.endswith(".zip") or (not os.path.exists(path) and os.path.exists(path[:-5] + ".zip")):
+        zip_path = path if path.endswith(".zip") else path[:-5] + ".zip"
+        with zipfile.ZipFile(zip_path) as z:
+            # The result JSON is the one without a _suffix before .json
+            stem = os.path.basename(zip_path)[: -len(".zip")]
+            member = f"{stem}.json"
+            if member not in z.namelist():
+                cands = [n for n in z.namelist() if n.endswith(".json") and "_config" not in n]
+                if not cands:
+                    raise SystemExit(f"No result JSON found inside {zip_path}")
+                member = cands[0]
+            with z.open(member) as f:
+                return json.load(f)
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def make_baseline(backtest_json: str, out_path: str, known_tags: str | None = None) -> None:
     """Distill a freqtrade backtest result export into the small baseline file."""
-    with open(backtest_json, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _load_backtest_export(backtest_json)
     # Freqtrade export: {"strategy": {"<StrategyName>": {...stats...}}}
     strat = next(iter(data["strategy"].values()))
     baseline = {
