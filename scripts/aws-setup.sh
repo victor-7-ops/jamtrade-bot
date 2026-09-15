@@ -15,7 +15,7 @@ echo " JamTrade AWS Setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ── Step 1: system update + build deps ──────────────────────────────────────
-echo "[1/7] System update + build dependencies..."
+echo "[1/9] System update + build dependencies..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
   build-essential wget curl git \
@@ -23,7 +23,7 @@ sudo apt-get install -y -qq \
   libssl-dev libffi-dev pkg-config
 
 # ── Step 2: swap file (2GB) ─────────────────────────────────────────────────
-echo "[2/7] Swap file (2GB — pandas needs headroom on 1GB RAM)..."
+echo "[2/9] Swap file (2GB — pandas needs headroom on 1GB RAM)..."
 if [ ! -f /swapfile ]; then
   sudo fallocate -l 2G /swapfile
   sudo chmod 600 /swapfile
@@ -36,7 +36,7 @@ else
 fi
 
 # ── Step 3: TA-Lib C library from source ────────────────────────────────────
-echo "[3/7] TA-Lib C library (build from source)..."
+echo "[3/9] TA-Lib C library (build from source)..."
 TALIB_VERSION="0.4.0"
 TALIB_TAR="ta-lib-${TALIB_VERSION}-src.tar.gz"
 if ! ldconfig -p | grep -q libta_lib; then
@@ -55,7 +55,7 @@ else
 fi
 
 # ── Step 4: clone repo if needed ────────────────────────────────────────────
-echo "[4/7] Repo..."
+echo "[4/9] Repo..."
 if [ ! -d "$REPO_DIR" ]; then
   echo "  Cloning repo..."
   git clone https://github.com/victor-7-ops/jamtrade-bot.git "$REPO_DIR"
@@ -66,7 +66,7 @@ fi
 cd "$REPO_DIR"
 
 # ── Step 5: Python venv + deps ──────────────────────────────────────────────
-echo "[5/7] Python venv + dependencies..."
+echo "[5/9] Python venv + dependencies..."
 if [ ! -d "$VENV_DIR" ]; then
   python3 -m venv "$VENV_DIR"
 fi
@@ -76,7 +76,7 @@ pip install -r requirements.txt -q
 echo "  Dependencies installed."
 
 # ── Step 6: safety check — dry_run must be true ─────────────────────────────
-echo "[6/7] Safety check: dry_run=true..."
+echo "[6/9] Safety check: dry_run=true..."
 if ! grep -q '"dry_run": true' "$CONFIG"; then
   echo ""
   echo "✕ SAFETY STOP: '\"dry_run\": true' not found in $CONFIG"
@@ -88,7 +88,7 @@ echo "  dry_run: true — OK."
 mkdir -p "$LOG_DIR"
 
 # ── Step 7: systemd service ──────────────────────────────────────────────────
-echo "[7/7] Installing systemd service: $SERVICE_NAME..."
+echo "[7/9] Installing systemd service: $SERVICE_NAME..."
 
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null <<EOF
 [Unit]
@@ -117,6 +117,54 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
+
+# ── Step 8: cap the journal ─────────────────────────────────────────────────
+# journald is uncapped by default. On a 6.7GB root this matters: a crash loop
+# writing full Python tracebacks every 30s will grow the journal until the disk
+# fills, which then kills freqtrade ("No space left on device"), which produces
+# more tracebacks. Capping it breaks that feedback loop.
+echo "[8/9] Capping systemd journal at 200M..."
+sudo mkdir -p /etc/systemd/journald.conf.d
+sudo tee /etc/systemd/journald.conf.d/99-jamtrade-cap.conf > /dev/null <<'EOF'
+[Journal]
+SystemMaxUse=200M
+SystemKeepFree=500M
+MaxRetentionSec=1month
+EOF
+sudo systemctl restart systemd-journald
+
+# ── Step 9: healthcheck timer ───────────────────────────────────────────────
+# Without this, healthcheck.sh is just a script nobody runs. On 2026-09-09 the
+# bot died and stayed dead for five days because nothing was watching it.
+# Hourly, and it only messages you when something is actually wrong.
+echo "[9/9] Installing healthcheck timer..."
+sudo tee /etc/systemd/system/jamtrade-healthcheck.service > /dev/null <<EOF
+[Unit]
+Description=JamTrade deployment healthcheck (alerts via Telegram on failure)
+
+[Service]
+Type=oneshot
+User=${USER}
+WorkingDirectory=${REPO_DIR}
+EnvironmentFile=-${HOME}/.env
+ExecStart=/bin/bash ${REPO_DIR}/scripts/healthcheck.sh
+EOF
+
+sudo tee /etc/systemd/system/jamtrade-healthcheck.timer > /dev/null <<'EOF'
+[Unit]
+Description=Run JamTrade healthcheck hourly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now jamtrade-healthcheck.timer
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
