@@ -106,11 +106,32 @@ else
   add_problem "⛔ venv python not found at .venv/bin/python"
 fi
 
+# ── Dead-man's switch ───────────────────────────────────────────────────
+# Everything above runs ON the box, so none of it can tell you the box itself
+# died — no power, terminated instance, kernel panic, network gone. A silent
+# healthcheck is indistinguishable from a healthy one, which is precisely the
+# failure mode that hid the 5-day outage.
+#
+# Inverting it fixes that: ping an external watchdog on SUCCESS, and let the
+# watchdog alert when the pings STOP. Set HEALTHCHECK_PING_URL in ~/.env to a
+# cron-monitor URL (healthchecks.io has a free tier; any equivalent works).
+# Configure the watchdog's period a little above this timer's hourly interval.
+# Unset = skipped, so this stays optional.
+ping_watchdog() {
+  [ -n "${HEALTHCHECK_PING_URL:-}" ] || return 0
+  curl -fsS --max-time 10 --retry 2 "${HEALTHCHECK_PING_URL}${1:-}" >/dev/null 2>&1 || true
+}
+
 # Report only if there are problems.
 if [ "$PROBLEM_COUNT" -eq 0 ]; then
   echo "$(date -u +%FT%TZ) healthcheck OK"
+  ping_watchdog
   exit 0
 fi
+
+# Signal failure to the watchdog too, so it can alert immediately rather than
+# waiting for the ping window to lapse.
+ping_watchdog "/fail"
 
 MSG="🩺 JamTrade healthcheck found issues on $(hostname):"$'\n'"${PROBLEMS%$'\n'}"
 echo "$MSG"
