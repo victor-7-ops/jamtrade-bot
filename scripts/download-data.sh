@@ -15,10 +15,39 @@ TIMEFRAMES="4h 1d"
 # 2023-01-01 start left a 2024 backtest window short of warmup data.
 SINCE="20220101-"
 
-EXCHANGE="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["exchange"]["name"])' "$CONFIG")"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Resolve an interpreter for the one-line JSON read below. Ubuntu ships no bare
+# `python` — only `python3` — so calling `python` fails on the server while
+# working fine in a Windows venv. Prefer the project venv, which definitely has
+# what we need, then fall back.
+if [ -x "$REPO_DIR/.venv/bin/python" ]; then
+  PY="$REPO_DIR/.venv/bin/python"
+elif [ -x "$REPO_DIR/.venv/Scripts/python.exe" ]; then
+  PY="$REPO_DIR/.venv/Scripts/python.exe"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="python3"
+elif command -v python >/dev/null 2>&1; then
+  PY="python"
+else
+  echo "✕ No python interpreter found (looked for .venv, python3, python)." >&2
+  exit 1
+fi
+
+# Prefer the venv's freqtrade too — a bare `freqtrade` only resolves when the
+# venv happens to be activated, which is not true under cron/systemd.
+if [ -x "$REPO_DIR/.venv/bin/freqtrade" ]; then
+  FREQTRADE="$REPO_DIR/.venv/bin/freqtrade"
+elif [ -x "$REPO_DIR/.venv/Scripts/freqtrade.exe" ]; then
+  FREQTRADE="$REPO_DIR/.venv/Scripts/freqtrade.exe"
+else
+  FREQTRADE="freqtrade"
+fi
+
+EXCHANGE="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["exchange"]["name"])' "$CONFIG")"
 
 echo "▶ Downloading data from '$EXCHANGE' (config whitelist) [$TIMEFRAMES] since $SINCE"
-freqtrade download-data \
+"$FREQTRADE" download-data \
   --config "$CONFIG" \
   --timeframe $TIMEFRAMES \
   --timerange "$SINCE"
