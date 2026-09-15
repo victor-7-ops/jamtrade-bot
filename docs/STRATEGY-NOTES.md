@@ -324,13 +324,25 @@ Validation (2026-09-14, freqtrade 2026.8, Binance data, local venv):
   never flips the boolean; the fix removes a latent failure mode rather than changing
   present-day results.
 
-**This reopens the Jul-2026 drought question.** The 2026-07-20/21 entry below concluded
-"not a bug — choppy regime", reasoning from ADX readings taken with `signal_advisor.py`.
-That tool was independently broken at the time (see below), and we now know the macro gate
-can hard-block on nan rather than degrade gracefully. Whether the live bot's daily frame
-was actually short enough to trigger that is **untested** — it needs OHLCV past 2026-06-03,
-which no reachable exchange currently provides from this network. Re-check when data
-allows; the regime explanation may be correct, incomplete, or wrong.
+**This reopens the Jul-2026 drought question — and it is now known to be UNRESOLVABLE
+with available data.** The 2026-07-20/21 entry below concluded "not a bug — choppy
+regime", reasoning from ADX readings taken with `signal_advisor.py`. That tool was
+independently broken at the time (see below), and we now know the macro gate can
+hard-block on nan rather than degrade gracefully. Settling it needs OHLCV covering July
+2026, and no source can provide it:
+
+- **Kraken serves no OHLCV at all.** Verified 2026-09-15 on the EC2 box:
+  `ERROR - Historic klines not available for Kraken. Please use --dl-trades instead.`
+  Reconstructing candles from raw trades is gigabytes per pair — not practical on a
+  t3.micro.
+- **Binance** returns 403 from the owner's network and 451 from US AWS IPs.
+- The local Binance archive **ends 2026-06-03**, before the drought.
+
+A third exchange (OKX, Bybit, Coinbase) could act as a proxy, but proxying correlated
+majors is exactly the reasoning that made the original diagnosis shaky, so it would
+produce another unfalsifiable answer rather than a real one. **Leave this open.** The
+regime explanation may be correct, incomplete, or wrong — treat all three as live
+possibilities rather than citing the July verdict as settled.
 
 **Higher-timeframe gates now fail CLOSED.**
 `populate_entry_trend` used `dataframe.get("above_ema200_1d", 1) == 1`, which defaults to
