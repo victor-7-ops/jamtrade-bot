@@ -246,6 +246,60 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Walk-forward (2026-09-15) — DECAY FLAG. Do not proceed to Phase 4.
+
+8 windows, 6 months each, 3-month step, all fully warmed (2024-03-01 → 2026-06-01,
+current code, Binance data):
+
+```
+win  range                 n   win%    avg%    PF  maxDD%
+ 1   2024-03→09           26    50%  +0.28%  1.11   2.89%
+ 2   2024-06→12           26    62%  +2.67%  2.98   1.32%
+ 3   2024-09→2025-03      28    46%  +2.47%  2.41   1.17%
+ 4   2024-12→2025-06      17    47%  +1.53%  1.76   1.22%
+ 5   2025-03→09           25    48%  +0.29%  1.12   2.86%
+ 6   2025-06→12           32    44%  -0.33%  0.88   3.91%
+ 7   2025-09→2026-03      12    42%  -0.83%  0.73   1.99%
+ 8   2025-12→2026-06       1     0%  -3.32%  0.00  (thin)
+```
+
+Profit factor decays monotonically after window 2: **2.98 → 2.41 → 1.76 → 1.12 → 0.88
+→ 0.73**. The last three windows are net losing. Slope -0.412pp/window.
+
+**Entry frequency collapses too**: 32 trades in window 6, 12 in window 7, 1 in window 8.
+Not merely losing — finding progressively fewer setups.
+
+**The decay is INSIDE the optimisation range.** The hyperopt export
+(`MultiConfirmationStrategy.json`) is dated 2026-06-03, so every window here is data the
+parameters were fitted on. This is not out-of-sample degradation; the strategy is losing
+money in the recent portion of its own training data.
+
+**This reframes the drift check that passed on the same day.** Live avg profit of -0.14%
+looked "within thresholds" against the 2.25-year baseline average of +0.76% — but that
+average is carried by the strong 2024-25 windows. Against the recent windows (-0.33%,
+-0.83%), live is exactly where the backtest says it should be. Live and backtest agree
+with each other; they agree that the edge is absent in the current regime. A passing
+drift check is not evidence of a working strategy when the reference itself is losing.
+
+Caveats, stated so they are not used to wave this away:
+- Windows overlap 50%, so they are not independent; the effective sample is smaller
+  than 8 and the slope is less precise than it looks.
+- Binance data; live runs on Kraken. Unavoidable — Kraken serves no OHLCV.
+- Window 8 (n=1) is noise and should be ignored; the trend holds without it.
+
+**Per ROADMAP Phase 3: an edge that does not hold up should be discarded, not defended.**
+Phase 4 (real capital) is not appropriate. Honest options, in order of preference:
+
+1. Accept that this strategy is regime-dependent — it worked in the 2024-25 conditions
+   and does not work now — and either sit it out or develop something regime-aware.
+2. Re-examine whether the 2024-25 performance was itself an artifact of the hyperopt,
+   by hyperopting on an EARLIER slice and testing forward on a later one it never saw.
+3. Discard and start over with what was learned.
+
+What NOT to do: re-run hyperopt over the full range until the numbers look good again.
+That fits the parameters to the decay and produces a strategy that backtests beautifully
+and loses money live. The decay is the finding; hiding it is not a fix.
+
 ### Live observations (2026-09-15) — 9 usable trades, NOT yet actionable
 
 First performance report since recovery. **Sample is 11 closed trades, 2 of them outage
