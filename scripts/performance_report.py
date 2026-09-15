@@ -434,6 +434,10 @@ def main() -> None:
     ap.add_argument("--db", default=DEFAULT_DB, help=f"Freqtrade sqlite DB (default: {DEFAULT_DB})")
     ap.add_argument("--baseline", default="user_data/backtest_baseline.json",
                     help="baseline JSON for drift check (skipped if missing)")
+    ap.add_argument("--since", metavar="YYYY-MM-DD",
+                    help="only score trades OPENED on/after this date. Use it to exclude known-bad "
+                         "periods (outages, pre-upgrade code) explicitly rather than hoping a "
+                         "heuristic notices them — see docs/STRATEGY-NOTES.md for known boundaries")
     ap.add_argument("--max-open-trades", type=int, default=3,
                     help="concurrent-trade cap from the config, used for the exposure calc (default: 3)")
     ap.add_argument("--min-trades", type=int, default=2,
@@ -453,9 +457,22 @@ def main() -> None:
         return
 
     trades = load_closed_trades(args.db)
+
+    excluded = 0
+    if args.since:
+        try:
+            cutoff = datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            sys.exit(f"--since must be YYYY-MM-DD, got: {args.since}")
+        before = len(trades)
+        trades = [t for t in trades if t.get("open_date") and t["open_date"] >= cutoff]
+        excluded = before - len(trades)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     lines = [f"📊 JamTrade paper report — {now}", ""]
+    if args.since:
+        lines.append(f"Filtered to trades opened on/after {args.since} ({excluded} excluded)")
+        lines.append("")
 
     if not trades:
         lines.append("No closed paper trades yet. Nothing to score — let it run.")
