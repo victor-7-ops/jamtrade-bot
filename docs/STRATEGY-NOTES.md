@@ -246,6 +246,50 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Train/test split (2026-09-15) — the edge does not generalise. VERDICT.
+
+Follow-up to the walk-forward decay. Question: was there ever a real edge that later
+decayed, or was the 2024-25 performance a fitting artifact? Method: hyperopt on an
+earlier slice ONLY, then evaluate on a later slice the optimiser never saw.
+
+- **Train:** 2024-03-01 → 2025-03-01 (12 months). 100 epochs, Optuna/NSGAIII,
+  SharpeHyperOptLoss, spaces buy+sell, `--disable-param-export`. 64 epochs completed.
+- **Test:** 2025-03-01 → 2026-06-01 (15 months). Never seen by the optimiser.
+
+```
+params                                    train                      test
+train-fitted (rsi31/adx23/vol1.7/atr3.6)  56tr 53.6% win  +0.73%     46tr 41.3% win  -0.74%
+live         (rsi32/adx25/vol1.8/atr3.9)  54tr 48.1% win  +1.41%     38tr 44.7% win  -0.16%
+```
+
+**1. The edge is period-specific, not real.** BOTH parameter sets are positive in train
+and negative in test. This is not a question of parameter choice — the strategy stops
+working after early 2025 regardless of how it is tuned.
+
+**2. Hyperopt actively degraded generalisation.** The fitted params beat the live ones
+in-sample on win rate (53.6% vs 48.1%) and were ~4x worse out-of-sample (-0.74% vs
+-0.16%). The optimiser bought in-sample fit by selling robustness. This is the textbook
+overfitting signature and it is worth internalising: *more hyperopt would make this
+worse, not better.*
+
+**3. The backtest infrastructure is honest — and that is the good news.** Live paper
+trading avg profit is **-0.14%**. Live params backtested on the out-of-sample window give
+**-0.16%**. Agreement to 0.02pp, across a different exchange (Kraken live vs Binance
+backtest). Combined with lookahead-analysis reporting zero bias, this says the tooling is
+trustworthy and predicted live performance almost exactly. What it measures is real. What
+it measures just is not profitable in the current regime.
+
+**Verdict: this strategy does not have a durable edge.** Phase 4 is not appropriate, and
+further tuning is the wrong response. Per ROADMAP Phase 3, discard rather than defend.
+
+Secondary finding — **`buy_bb_std` is not actually hyperoptable.** freqtrade warns:
+`Parameter 'buy_bb_std' is part of this hyperopt run, but its value is used during
+indicator calculation, which only runs once at hyperopt startup. All epochs will be
+evaluated with its static start value.` It is consumed in `populate_indicators`, so the
+optimiser samples it and the samples do nothing. The `1.8` recorded in the 2026-06-03
+export was therefore an arbitrary draw, never an optimised value. Fix would be
+`.range` or `--analyze-per-epoch` — but given the verdict above, do not bother tuning it.
+
 ### Walk-forward (2026-09-15) — DECAY FLAG. Do not proceed to Phase 4.
 
 8 windows, 6 months each, 3-month step, all fully warmed (2024-03-01 → 2026-06-01,
