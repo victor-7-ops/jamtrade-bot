@@ -336,6 +336,15 @@ with the 2026-09-14 restart boundary, there are now three regimes in the trade D
 Expect **fewer trades** live (81 vs 92 over 27 months backtest, ~12% fewer). Do not read a
 lower trade count as the bot being broken.
 
+Deployed to EC2 2026-09-29 15:47 UTC. Confirmed live: `atr_stop_mult = 5.5`,
+`buy_rsi = 32` unchanged, 8 pairs, state RUNNING.
+
+⚠️ **3 trades were open across the restart.** They were ENTERED under 3.9 and will EXIT
+under 5.5, so they belong cleanly to neither configuration. The first ~3 closes after
+2026-09-29 are therefore hybrids — exclude them when first comparing v1.8 against v1.9,
+or the comparison starts with three contaminated rows. `--since` cannot catch this on its
+own, because it filters on open date and these opened before the boundary.
+
 **Unexplained and more important than the ATR question:** live is running -1.11%/trade
 against a backtest test-window figure of -0.16% at the same parameters. n=8, and there is
 no benchmark for the live period (Kraken serves no OHLCV), so this may be noise or regime.
