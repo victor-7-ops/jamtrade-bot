@@ -246,6 +246,70 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### First clean post-recovery data + ATR sensitivity (2026-09-29)
+
+8 trades opened after the 2026-09-14 restart boundary — the first sample of THIS code on
+THIS bot. `--since 2026-09-14`:
+
+```
+8 trades · win 38% · avg -1.11%/trade · cum -8.86% · maxDD -15.73% · exposure 47%
+exit_signal          3   100% win   +6.09% avg
+trailing_stop_loss   4     0% win   -4.14% avg
+```
+
+**Exit asymmetry reproduced** — third independent sample (backtest, contaminated live,
+clean live) showing every trailing-stop exit losing and every indicator exit winning.
+
+**But the mechanism I proposed for it was wrong.** I claimed losers "drift for days before
+the stop catches them" from a 160h-vs-47h duration gap. Clean data shows 60h vs 52h — no
+gap. That was an outage artifact. And on reflection the asymmetry is close to tautological:
+a trailing stop IS the exit for trades that went against you, so of course those are the
+losers. It is not by itself a defect.
+
+**The 47% vs 17% exposure gap is not real** — `config-backtest.json` runs 3 pairs while
+live runs 8. My error: I set the backtest config to BTC/ETH/SOL because those were the only
+pairs with local data, then compared exposure as if equivalent. Live also trades 0.62/day
+vs backtest 0.11/day, same cause. Do not compare trade frequency or exposure across those
+two configs until the pair lists match.
+
+**ATR stop sensitivity — the search range was mis-specified.** Swept `atr_stop_mult` on
+both windows (3 pairs, current code):
+
+```
+atr    TRAIN tot  TRAIN DD   TEST tot  TEST DD    worst trade
+2.0      -8.71%       --      -5.13%      --           --
+2.5      -7.01%       --      -0.93%      --           --
+3.0      -2.32%       --      -1.95%      --           --
+3.9      +8.52%    2.89%      -0.60%   3.88%      -10.18%   <- current
+4.5      +9.42%       --      -0.30%      --           --
+5.5      +6.95%    2.67%      +0.10%   2.70%      -10.18%
+7.0      +3.33%       --      +0.59%      --           --
+9.0      +2.25%    5.19%      +2.38%   3.38%      -10.18%
+```
+
+- Everything below 3.0 is clearly worse on BOTH windows. The lower half of the hyperopt
+  range (1.5-4.0) is dead space.
+- TRAIN peaks at 4.5; TEST improves monotonically to 9.0 and is still rising. **They
+  disagree** — so picking 9.0 because the holdout likes it would be fitting to the holdout
+  and destroying the only clean measurement available. Do not do that.
+- The **hard stoploss still binds at every multiple** (worst trade -10.18% throughout), so
+  widening the trail does not remove risk control; it lets the -10% backstop do the work
+  instead of the trail. This matters for CLAUDE.md rule 4: realized per-trade risk is
+  unchanged, and drawdown *improves*.
+- **5.5 has lower max drawdown than current on both windows** (2.67 vs 2.89, 2.70 vs 3.88)
+  and better test return (+0.10% vs -0.60%), at the cost of train return (6.95 vs 8.52).
+  It sits mid-region rather than at an edge, so it is not a cherry-picked peak.
+
+**Status: NOT APPLIED.** This is a strategy change and belongs to the owner. If applied:
+change only this one value, run `bash scripts/validate.sh` (rule 3 — atr_stop_mult affects
+exits), regenerate the baseline, and mark the change date so live trades either side stay
+separable.
+
+**Unexplained and more important than the ATR question:** live is running -1.11%/trade
+against a backtest test-window figure of -0.16% at the same parameters. n=8, and there is
+no benchmark for the live period (Kraken serves no OHLCV), so this may be noise or regime.
+Worth watching specifically as the sample grows.
+
 ### CORRECTION (2026-09-15, same day) — the "no edge" verdict below was WRONG
 
 The two entries below conclude "no durable edge, discard rather than defend". That
