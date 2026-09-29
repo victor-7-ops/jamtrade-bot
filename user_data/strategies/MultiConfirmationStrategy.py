@@ -132,7 +132,15 @@ class MultiConfirmationStrategy(IStrategy):
     buy_min_score = IntParameter(2, 4, default=3, space="buy", optimize=True)
 
     sell_rsi = IntParameter(60, 80, default=68, space="sell", optimize=True)
-    atr_stop_mult = DecimalParameter(1.5, 4.0, default=2.5, decimals=1, space="sell", optimize=True)
+    # Range widened from (1.5, 4.0) on 2026-09-29. A sweep across both the train
+    # (2024-03..2025-03) and test (2025-03..2026-06) windows showed the old range was
+    # mis-specified in both directions: everything below 3.0 was worse on BOTH windows,
+    # and both windows preferred values above the 4.0 ceiling — which the optimiser could
+    # never reach, so the 3.9 it "found" was pinned against the boundary, not chosen.
+    # Upper bound 9.0 is where the ATR distance exceeds the -10% hard stoploss on typical
+    # crypto ATR%, i.e. where the trail stops binding at all; beyond that the parameter
+    # has no further effect. See STRATEGY-NOTES 2026-09-29.
+    atr_stop_mult = DecimalParameter(3.0, 9.0, default=5.5, decimals=1, space="sell", optimize=True)
 
     # --- Portfolio-level risk cap (v1.8 experiment — TESTED, NOT ENABLED) --
     # Backtested 20230101-20250601 against current params/data. At this

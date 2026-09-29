@@ -300,10 +300,41 @@ atr    TRAIN tot  TRAIN DD   TEST tot  TEST DD    worst trade
   and better test return (+0.10% vs -0.60%), at the cost of train return (6.95 vs 8.52).
   It sits mid-region rather than at an edge, so it is not a cherry-picked peak.
 
-**Status: NOT APPLIED.** This is a strategy change and belongs to the owner. If applied:
-change only this one value, run `bash scripts/validate.sh` (rule 3 — atr_stop_mult affects
-exits), regenerate the baseline, and mark the change date so live trades either side stay
-separable.
+**APPLIED 2026-09-29 — v1.9. `atr_stop_mult` 3.9 → 5.5.** Owner-approved. One value
+changed; no entry parameters touched.
+
+Also widened the declared range `DecimalParameter(1.5, 4.0)` → `(3.0, 9.0)`, default
+2.5 → 5.5. This was *required*, not optional: 5.5 sits outside the old range, and the
+range itself was the bug — the 3.9 the optimiser "found" was pinned against its 4.0
+ceiling rather than chosen. Upper bound 9.0 is where the ATR distance exceeds the -10%
+hard stop on typical crypto ATR%, past which the parameter stops having any effect.
+
+Validation (rule 3, both clean):
+- `lookahead-analysis`: has_bias **No** — 0 biased entry, 0 biased exit, 0 biased indicators
+- `recursive-analysis`: unchanged; ema200_1d still nan at 199 candles, 0.41% drift at 400
+
+Baseline regenerated on the full fully-warmed window (2024-03-01 → 2026-06-01, 3 pairs):
+
+```
+                old (3.9)    new (5.5)
+trades              92           81
+win rate         46.74%       51.85%
+avg profit      +0.7636%     +0.7616%
+max drawdown      3.59%        2.52%
+total            +7.92%       +7.06%
+return / maxDD     2.21         2.80
+```
+
+Same avg profit, better win rate, **30% lower drawdown**, slightly lower total return from
+11 fewer trades. Risk-adjusted improvement, not a return improvement — which is what the
+window-level sweep predicted, so the full-period result corroborates rather than surprises.
+
+**LIVE CHANGE BOUNDARY: 2026-09-29.** Trades before this ran 3.9, after run 5.5. Combined
+with the 2026-09-14 restart boundary, there are now three regimes in the trade DB — use
+`--since` when scoring, and do not pool across boundaries.
+
+Expect **fewer trades** live (81 vs 92 over 27 months backtest, ~12% fewer). Do not read a
+lower trade count as the bot being broken.
 
 **Unexplained and more important than the ATR question:** live is running -1.11%/trade
 against a backtest test-window figure of -0.16% at the same parameters. n=8, and there is

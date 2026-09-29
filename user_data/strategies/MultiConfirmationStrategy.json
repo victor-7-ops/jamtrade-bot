@@ -24,10 +24,10 @@
       "buy_vol_mult": 1.8
     },
     "sell": {
-      "atr_stop_mult": 3.9,
+      "atr_stop_mult": 5.5,
       "sell_rsi": 80
     }
   },
   "ft_stratparam_v": 1,
-  "export_time": "2026-06-03 12:50:53.778596+00:00"
+  "export_time": "2026-09-29 15:40:00+00:00 (atr_stop_mult hand-set 3.9 -> 5.5, see STRATEGY-NOTES)"
 }
