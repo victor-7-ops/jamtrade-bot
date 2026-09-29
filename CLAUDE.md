@@ -138,7 +138,16 @@ bash scripts/dryrun.sh
 
 - Freqtrade strategy interface version: **3**
 - Primary timeframe: `4h`, with `1d` as an informative (higher-timeframe trend filter)
-- Exchange for paper trading: Binance (public data, no keys needed in dry-run)
+- **Two exchanges, on purpose — do not "fix" this into one.**
+  - *Live / dry-run:* **Kraken** (`user_data/config-dryrun.json`). Binance returns HTTP 451
+    from US AWS and GitHub IPs.
+  - *Backtesting:* **Binance** (`user_data/config-backtest.json`). Kraken serves NO
+    historical OHLCV at all — `freqtrade download-data` against it fails outright and
+    points you at `--dl-trades`, which is gigabytes per pair. Every documented result in
+    STRATEGY-NOTES was produced on Binance data.
+  - Freqtrade reads candles from `user_data/data/<exchange>/`, so pointing a backtest at
+    the live config silently reads an empty directory. This split is structural: without
+    it the project cannot backtest at all.
 - The strategy is hyperopt-ready; buy/sell params are defined as `IntParameter`/`DecimalParameter`
 
 ## Deployment notes (AWS EC2 — current)
