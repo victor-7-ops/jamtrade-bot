@@ -9,7 +9,14 @@
     "//    concerns and must not share one setting.": "",
     "//      * Live/dry-run runs on Kraken, because Binance returns HTTP 451": "",
     "//        to the EC2 host's US IP (see docs/AWS-DEPLOY.md).": "",
-    "//      * Backtests run on Binance history, because KRAKEN CANNOT SERVE": "",
+    "//  UPDATED 2026-10-13: switched Binance -> OKX. Binance only covers 3": "",
+    "//  pairs in the local archive and cannot be re-downloaded (403 from the": "",
+    "//  owner's network, 451 from US AWS). OKX serves all 8 live pairs back to": "",
+    "//  2022 and tracks Binance to 0.007% mean / 0.044% max on daily closes": "",
+    "//  over 1249 overlapping days, so prior results stay comparable.": "",
+    "//  NOTE: OKX is unreachable from the owner's network, so backtests now run": "",
+    "//  ON THE EC2 BOX. Data lives at user_data/data/okx/ there.": "",
+    "//      * Backtests ran on Binance history, because KRAKEN CANNOT SERVE": "",
     "//        OHLCV AT ALL. `freqtrade download-data` against Kraken fails": "",
     "//        outright (verified 2026-09-15 on the EC2 box):": "",
     "//          ERROR - Historic klines not available for Kraken. Please use": "",
@@ -67,7 +74,7 @@
 
     "exchange": {
         "//  Historical data source. No keys: backtesting reads local files.": "",
-        "name": "binance",
+        "name": "okx",
         "key": "",
         "secret": "",
         "ccxt_config": {},
@@ -82,7 +89,12 @@
         "pair_whitelist": [
             "BTC/USDT",
             "ETH/USDT",
-            "SOL/USDT"
+            "SOL/USDT",
+            "ADA/USDT",
+            "XRP/USDT",
+            "LINK/USDT",
+            "DOT/USDT",
+            "AVAX/USDT"
         ],
         "pair_blacklist": [
             "BNB/.*",
