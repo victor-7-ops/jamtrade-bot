@@ -246,6 +246,55 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### CORRECTION (2026-10-13) — the v1.9 revert rationale was based on a units error
+
+**The headline claim in the v1.9 revert entry below is wrong.** It states v1.9 lost
+"-26.64% while the market fell 8.29%", i.e. three times the market. That compared a
+**sum of per-trade profit ratios** against an **account-relative** benchmark.
+
+At a 100 USDT stake on a 1000 USDT wallet those differ by 10x. The real figures:
+
+```
+                        per-trade avg   summed ratios   ACCOUNT impact
+v1.9 live, 6 trades        -4.44%          -26.64%          -2.66%
+market over same window                                     -8.29%
+```
+
+**v1.9 lost 2.66% of account while the market fell 8.29% — it OUTPERFORMED by ~5.6pp.**
+`performance_report.py` now leads with the account figure and labels the summed one.
+
+**What this does and does not change.**
+
+Still true: live underperformed the backtest. With the OKX 8-pair data now covering the
+live period, the same windows backtest as:
+
+```
+window                      backtest acct   live acct   backtest/trade   live/trade
+v1.8  2026-09-14 -> 09-29       +0.70%        -0.89%        +0.96%         -1.11%
+v1.9  2026-09-29 -> 10-12       -1.42%        -2.66%        -1.83%         -4.44%
+whole 2026-09-14 -> 10-12       -0.15%        -3.55%        +0.05%         -2.54%
+```
+
+Trade counts track closely (15 backtest vs 14 live), so **entry logic is firing as
+expected — the divergence is in outcomes, not signals**, at roughly **-2.5pp per trade**.
+That is a real gap worth chasing (slippage on market-order stop exits, Kraken-vs-OKX fills,
+the 0.26% taker fee) but it is an execution-quality problem, not the collapse I described.
+
+No longer supported: that v1.9 was a disaster. On 6 trades it beat its benchmark. The
+remaining case against it — 0/6 wins and worse per-trade than backtest — is weak at that
+sample size.
+
+**The revert stands anyway**, for reasons that do not depend on the error: 3.9 has far more
+live history, the sweep showed 3.9 best on both backtest windows, and v1.4 independently
+closed the wider-stop avenue in June. But the *stated* reason was wrong, and a future reader
+would otherwise inherit a false fact.
+
+**Third measurement error in this project to produce a wrong strategy conclusion**, after
+benchmarking against zero and ignoring exposure. All three came from comparing two numbers
+that were not the same kind of thing. The instruments are now fixed in all three places;
+the lesson is that a plausible-looking number deserves a unit check before it drives a
+decision.
+
 ### Regime-aware sizing REJECTED before implementation (2026-10-13) — and why refinement keeps failing
 
 Tested the hypothesis before writing the feature: does regime strength at entry predict
