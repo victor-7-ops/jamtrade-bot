@@ -246,6 +246,71 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### SOLVED (2026-10-13) — why live diverges from backtest: L5 is venue-specific
+
+The standing open question. Answered now that the OKX 8-pair dataset covers the live period.
+
+**It is not execution quality.** Matched live and backtest trades over 2026-09-14 → 10-13:
+
+```
+                entry diff   exit diff   profit gap
+mean over 7 matched trades    +0.39%      +0.37%      -0.18pp
+```
+
+Where both systems took the same trade, results agree almost exactly:
+
+```
+09-15 16:00 XRP    live -7.92%   backtest -7.86%
+09-20 04:00 AVAX   live +7.99%   backtest +8.53%
+09-28 20:00 LINK   live -7.11%   backtest -7.21%
+```
+
+So slippage, fees and fill quality are **not** the problem.
+
+**The two systems take different trades.** Both produced 16 trades in the window — a
+coincidence, not agreement. Only 7 matched on pair within 8h. Live took LINK 09-18 20:00,
+AVAX 09-21 04:00 and three positions at 09-25 16:00; the backtest took ETH 09-21 04:00,
+XRP 09-21 12:00, AVAX 09-23 16:00.
+
+**Cause: L5 depends on volume, and volume is venue-specific.** Comparing Kraken (live) to
+OKX (backtest) over the same 4h candles:
+
+```
+pair        price diff    Kraken/OKX volume ratio        L5 agreement
+XRP/USDT      0.0316%     median 0.042  (0.01 - 0.39)       91.4%
+LINK/USDT     0.0872%     median 0.064  (0.00 - 0.28)       90.9%
+SOL/USDT      0.0297%     median 0.036  (0.01 - 0.20)       90.4%
+```
+
+Prices agree to ~0.03%. Kraken's volume is ~4% of OKX's and the ratio swings two orders of
+magnitude. L5 is relative (`volume > 1.8x its own 20-SMA`) so the absolute level does not
+matter — but the *shape* differs, because different venues have different participants.
+Result: **the L5 condition disagrees on ~9% of candles**, and L5 fires on ~100% of entries.
+A 9% disagreement rate on the hard gate across 8 pairs and hundreds of candles is more than
+enough to produce completely different trade sets.
+
+**What this means — carefully.**
+
+1. **Backtesting on a proxy venue cannot predict live trade SELECTION for this strategy.**
+   It is fine for price-driven logic; L5 is not price-driven. Since Kraken serves no OHLCV
+   at all, there is no way to backtest the venue we actually trade on.
+2. **The performance gap may be sampling noise, not a systematic penalty.** Per-trade
+   returns here range -10.6% to +8.0%; with n=16 the standard error of the mean is roughly
+   1.4pp, and the observed live-vs-backtest difference is about 2.75pp/trade — under two
+   standard errors. **We cannot conclude live is systematically worse.** It drew a different,
+   worse set of trades from a similar distribution.
+3. **This retroactively weakens the v1.9 verdict further.** v1.9 "failing live" was measured
+   against a backtest that was never taking the same trades. Combined with the units error
+   corrected above, very little of the original case survives.
+4. The backtest remains useful for **distribution-level** questions — does a change help on
+   average across hundreds of trades — and useless for **trade-level** prediction.
+
+**Do not "fix" this by removing or loosening L5.** v1.5 found L5 fires on 100% of entries,
+making it a hard gate; changing it alters the strategy's identity, and the evidence here is
+about measurement, not about whether L5 is a good filter. The honest response is to lower
+confidence in short-window live-vs-backtest comparisons, not to reshape the strategy so it
+backtests more conveniently.
+
 ### CORRECTION (2026-10-13) — the v1.9 revert rationale was based on a units error
 
 **The headline claim in the v1.9 revert entry below is wrong.** It states v1.9 lost
