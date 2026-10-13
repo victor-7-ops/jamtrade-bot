@@ -290,6 +290,21 @@ confirming a clean revert rather than a partial one.
 
 **LIVE BOUNDARY: 2026-10-13.** The DB now holds four regimes. Use `--since`; never pool.
 
+**We already knew this. See v1.4 (2026-06-10), below.** That experiment tested the same
+avenue from the same observation — hyperopt pinning `atr_stop_mult` against its ceiling,
+the trail producing all the losses, the indicator exit producing all the wins. It also
+degraded specifically the bear-market case (2025: +1.03% → -0.70%) and concluded, verbatim:
+*"Trailing-stop avenue is now closed with data"* and *"should guide future experiments
+toward entry quality, not exit tuning."*
+
+v1.9 reopened it four months later and failed the same way, for the reason v1.4 could see
+but not name: the indicator exit cannot fire in a downtrend, so the stop is the only exit
+and widening it enlarges every bear-market loss. Two experiments, same defect, one lesson
+paid for twice.
+
+**Standing rule: do not tune the exit stop again until `populate_exit_trend` can fire in a
+downtrend.** The defect is the exit *condition*, not the stop distance.
+
 **The real finding is not the stop multiple.** v1.9 was recommended on backtest evidence
 that was properly validated out-of-sample — train/test split, holdout never touched, both
 windows agreeing — and it still made things materially worse live. That means this
