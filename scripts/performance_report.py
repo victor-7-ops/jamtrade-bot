@@ -86,7 +86,25 @@ class Bucket:
 
     @property
     def cum_profit_pct(self) -> float:
+        """
+        SUM of per-trade profit ratios. NOT account return.
+
+        These are different numbers and confusing them inverts conclusions. With a
+        100 USDT stake on a 1000 USDT wallet, each 1% per-trade move is 0.1% of the
+        account, so this figure is ~10x the account impact. On 2026-10-13 a "-26.64%"
+        here was read as an account loss and compared against a market that fell
+        8.29%, producing "the strategy lost 3x the market" — when the real account
+        impact was -2.66% and it had OUTPERFORMED the falling market. That reading
+        drove a revert. Use account_profit_pct() for anything benchmark-related.
+        """
         return 100.0 * sum(self.profits)
+
+    def account_profit_pct(self, stake: float, wallet: float) -> float:
+        """Account-relative return — the figure that is comparable to a benchmark
+        or to freqtrade's own 'Tot Profit %'."""
+        if wallet <= 0:
+            return 0.0
+        return 100.0 * sum(self.profits) * stake / wallet
 
     @property
     def worst_pct(self) -> float:
@@ -438,6 +456,10 @@ def main() -> None:
                     help="only score trades OPENED on/after this date. Use it to exclude known-bad "
                          "periods (outages, pre-upgrade code) explicitly rather than hoping a "
                          "heuristic notices them — see docs/STRATEGY-NOTES.md for known boundaries")
+    ap.add_argument("--stake", type=float, default=100.0,
+                    help="stake_amount from the config, for account-relative return (default: 100)")
+    ap.add_argument("--wallet", type=float, default=1000.0,
+                    help="dry_run_wallet from the config, for account-relative return (default: 1000)")
     ap.add_argument("--max-open-trades", type=int, default=3,
                     help="concurrent-trade cap from the config, used for the exposure calc (default: 3)")
     ap.add_argument("--min-trades", type=int, default=2,
@@ -481,10 +503,21 @@ def main() -> None:
         for t in trades:
             overall.add(t["profit"], t["duration_h"])
         first = min(t["close_date"] for t in trades if t["close_date"])
+        acct = overall.account_profit_pct(args.stake, args.wallet)
         lines.append(
             f"Closed trades: {overall.n} since {first:%Y-%m-%d} · "
-            f"win {overall.win_rate:.0f}% · avg {overall.avg_profit_pct:+.2f}%/trade · "
-            f"cum {overall.cum_profit_pct:+.2f}% · maxDD {max_drawdown_pct(trades):.2f}%"
+            f"win {overall.win_rate:.0f}% · avg {overall.avg_profit_pct:+.2f}%/trade"
+        )
+        lines.append(
+            f"Return: {acct:+.2f}% of account "
+            f"({args.stake:g} stake / {args.wallet:g} wallet) · "
+            f"summed per-trade {overall.cum_profit_pct:+.2f}% · "
+            f"maxDD {max_drawdown_pct(trades):.2f}%"
+        )
+        lines.append(
+            "  ⓘ Compare the ACCOUNT figure to benchmarks and to freqtrade's "
+            "'Tot Profit %'. The summed figure is ~10x larger at these stake sizes "
+            "and is not an account return."
         )
         lines.extend(exposure_lines(trades, args.max_open_trades))
         lines.append("")
