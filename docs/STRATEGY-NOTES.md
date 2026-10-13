@@ -246,6 +246,61 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Exit-logic fix attempted and REJECTED (2026-10-13) — it is structural, not a bug
+
+Follow-up to the v1.9 finding below: the indicator exit cannot fire in a downtrend, so the
+ATR stop is the only exit there. Tried to fix it by adding a 4th bearish condition `s4`
+(threshold stays "2 of N"). Four variants, same window pair as all other tests:
+
+```
+variant                          train tot/DD      test tot/DD       full tot/DD
+baseline (3 conditions)          +8.52% / 2.89%    -0.60% / 3.88%    +7.92% / 3.59%
+A  close < ema50                 +2.71% / 4.74%    +1.21% / 2.08%    +3.93% / 4.74%
+B  uptrend_1d == 0               +5.70% / 4.26%    -2.35% / 4.72%    --
+C  A AND above_ema200_1d == 0    +8.52% / 2.89%    -1.03% / 3.90%    --
+D  A AND ema50 falling 24h       +3.34% / 5.31%    +1.50% / 2.28%    +4.85% / 5.31%
+```
+
+(test window market change: -22.68%)
+
+**Verdict: ship none of them.** A and D genuinely fix the bear case — the indicator exit
+starts firing (51 of 75 exits under A, 56.9% win, +10.79%) instead of the stop taking
+everything. But both cost 5-6pp in the bull window and are net-negative over the full
+period with *worse* drawdown.
+
+**Why it cannot be fixed this way — the part worth keeping.** This strategy is a
+dip-buyer. L2 is `RSI < 32` and L4 is `close < lower Bollinger`: **price weakness is its
+entry signal.** So price weakness cannot also serve as its exit signal. Any condition that
+fires in a downtrend also fires on exactly the pullbacks the strategy exists to buy. Under
+variant A, dip entries (`L2+L4+L5`, ~28% of trades) enter below the lower band — often
+already below ema50 — so `s4` was true at entry and killed them at birth. Trade count fell
+92 → 75.
+
+The other two variants close off the remaining obvious routes:
+- **C** proves the macro gate cannot help: entry already requires `above_ema200_1d == 1`,
+  so it would have to flip mid-trade, and daily EMA200 is far too lagging for that. It
+  almost never fired.
+- **B** proves the daily uptrend gate cannot help either: same lagging daily signal, fires
+  long after the damage.
+
+A time-based exit was considered and dropped without testing: in the backtest losers are
+*shorter* than winners (trailing 1d22h vs indicator 2d19h), so holding time does not
+discriminate.
+
+**What this means.** The exit asymmetry is not a defect in `populate_exit_trend` — it is
+the cost of being a dip-buyer, and it is already priced into the current design. The ATR
+stop *is* the bear-market exit, which is why the stop distance matters so much and why
+widening it (v1.9) was so damaging. The current 3.9 is the best value tested.
+
+Routes that remain genuinely open, none of them exit-condition tweaks:
+1. Regime-aware position sizing — trade smaller when the macro gate is weak, rather than
+   trying to exit faster.
+2. Entry quality — v1.4 reached this same conclusion from the other direction: *"guide
+   future experiments toward entry quality, not exit tuning."* Two independent routes now
+   point there.
+3. Accept the profile: this is a low-exposure system that gives up bull upside and limits
+   bear damage, and the measured edge over buy-and-hold is small.
+
 ### v1.9 REVERTED (2026-10-13) — backtest said wider stop, live said no
 
 `atr_stop_mult` 5.5 → **3.9**. Range reverted (3.0, 9.0) → (1.5, 4.0), default → 2.5.
