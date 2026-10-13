@@ -132,15 +132,21 @@ class MultiConfirmationStrategy(IStrategy):
     buy_min_score = IntParameter(2, 4, default=3, space="buy", optimize=True)
 
     sell_rsi = IntParameter(60, 80, default=68, space="sell", optimize=True)
-    # Range widened from (1.5, 4.0) on 2026-09-29. A sweep across both the train
-    # (2024-03..2025-03) and test (2025-03..2026-06) windows showed the old range was
-    # mis-specified in both directions: everything below 3.0 was worse on BOTH windows,
-    # and both windows preferred values above the 4.0 ceiling — which the optimiser could
-    # never reach, so the 3.9 it "found" was pinned against the boundary, not chosen.
-    # Upper bound 9.0 is where the ATR distance exceeds the -10% hard stoploss on typical
-    # crypto ATR%, i.e. where the trail stops binding at all; beyond that the parameter
-    # has no further effect. See STRATEGY-NOTES 2026-09-29.
-    atr_stop_mult = DecimalParameter(3.0, 9.0, default=5.5, decimals=1, space="sell", optimize=True)
+    # REVERTED to (1.5, 4.0) on 2026-10-13 after v1.9 failed live. Backtest said a wider
+    # stop was better — lower drawdown on both train and test windows — so 2026-09-29
+    # widened this range to (3.0, 9.0) and set 5.5. Two weeks live: 0 wins in 6 trades,
+    # -26.64% while the market fell 8.29%. An 18pp underperformance.
+    #
+    # Mechanism (see populate_exit_trend): the indicator exit needs 2 of
+    # {rsi > sell_rsi, macdhist < 0, close > bb_upper}. In a sustained downtrend only
+    # macdhist < 0 can fire, so it scores 1 and NEVER triggers — leaving the ATR stop as
+    # the sole exit. Widening the stop therefore enlarges every loss in exactly the regime
+    # where nothing else can close a position. The backtest window had enough rallies for
+    # indicator exits to carry the winners and hid this entirely.
+    #
+    # Keep the range narrow: a hyperopt allowed to roam to 9.0 will rediscover the wide
+    # value, because the backtest cannot see the failure mode. See STRATEGY-NOTES 2026-10-13.
+    atr_stop_mult = DecimalParameter(1.5, 4.0, default=2.5, decimals=1, space="sell", optimize=True)
 
     # --- Portfolio-level risk cap (v1.8 experiment — TESTED, NOT ENABLED) --
     # Backtested 20230101-20250601 against current params/data. At this

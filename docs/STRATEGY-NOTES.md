@@ -246,6 +246,59 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### v1.9 REVERTED (2026-10-13) — backtest said wider stop, live said no
+
+`atr_stop_mult` 5.5 → **3.9**. Range reverted (3.0, 9.0) → (1.5, 4.0), default → 2.5.
+14 days of v1.9 live:
+
+```
+6 closed trades · win 0% · avg -4.44%/trade · cum -26.64% · maxDD -26.64% · exposure 68%
+exits:  trailing_stop_loss  6/6   (indicator exit NEVER fired)
+tags:   L2+L4+L5 x4 (-3.91% avg) · L1+L3+L5 x2 (-5.49% avg)
+```
+
+Benchmark, fetched from Kraken over the same window (mean of the 8 whitelist pairs):
+**-8.29%**. The strategy returned **-26.64%** at 68% exposure — roughly 18pp WORSE than
+simply holding. No regime excuse: it lost three times what the market lost.
+
+**Mechanism — and this is the part worth keeping.** `populate_exit_trend` needs 2 of:
+
+```
+rsi > sell_rsi (80)      # requires overbought
+macdhist < 0             # fires in a downtrend
+close > bb_upperband     # requires overbought
+```
+
+In a sustained downtrend only `macdhist < 0` can be true. Score reaches 1, never 2, so
+**the indicator exit is structurally incapable of firing in a falling market** and the ATR
+stop becomes the only way out. Widening that stop therefore enlarges every single loss in
+precisely the regime where nothing else can close a position. 6/6 trailing-stop exits is
+exactly this.
+
+The backtest could not see it: its window (2024-03..2026-06) contained enough rallies for
+indicator exits to carry the winners, so the wider stop looked like a pure drawdown
+improvement (2.52% vs 3.59%).
+
+**Why the range was reverted too, not just the value.** A hyperopt allowed to roam to 9.0
+will rediscover 5.5+ every time, because the objective function cannot see this failure
+mode. The narrow range is now a guard rail, not an oversight — do not "fix" it again
+without first fixing the exit logic.
+
+Validation after revert: `lookahead-analysis` has_bias **No**; baseline regenerated and
+reproduces the pre-v1.9 numbers exactly (92 trades, 46.74% win, +0.7636% avg, 3.59% DD),
+confirming a clean revert rather than a partial one.
+
+**LIVE BOUNDARY: 2026-10-13.** The DB now holds four regimes. Use `--since`; never pool.
+
+**The real finding is not the stop multiple.** v1.9 was recommended on backtest evidence
+that was properly validated out-of-sample — train/test split, holdout never touched, both
+windows agreeing — and it still made things materially worse live. That means this
+strategy's backtest has limited predictive power for its live behaviour. Until that gap is
+understood, **further parameter tuning is not justified** regardless of how good the
+backtest numbers look. Candidate explanations worth testing: Binance-vs-Kraken execution
+differences, the 3-pair backtest config vs 8-pair live whitelist, or the exit asymmetry
+above interacting with a regime the backtest window under-represents.
+
 ### First clean post-recovery data + ATR sensitivity (2026-09-29)
 
 8 trades opened after the 2026-09-14 restart boundary — the first sample of THIS code on
