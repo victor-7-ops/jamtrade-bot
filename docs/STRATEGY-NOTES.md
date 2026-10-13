@@ -246,6 +246,60 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Regime-aware sizing REJECTED before implementation (2026-10-13) — and why refinement keeps failing
+
+Tested the hypothesis before writing the feature: does regime strength at entry predict
+trade outcome? Measured as distance of daily close above the daily EMA200, on the 92-trade
+baseline export.
+
+In-sample over the whole period it looked real, and **inverted** the expected direction —
+not "weak regime hurts" but "overextension hurts":
+
+```
+margin above daily EMA200      n   win%    avg%    cum pp
+Q1  -0.9 to 11%               23   43.5   +0.69    +15.8
+Q2    11 to 20%               23   56.5   +1.34    +30.9
+Q3    20 to 32%               23   52.2   +2.90    +66.8
+Q4    32 to 97%               23   34.8   -1.88    -43.3
+corr(margin, profit) = -0.156
+```
+
+Plausible story: a "dip" when price sits 32-97% above its 200-day EMA is buying euphoria,
+with no support beneath — bad for a dip-buyer.
+
+**It does not survive the train/test split:**
+
+```
+                      margin >32%                 margin <=32%
+TRAIN  2024-03..25-03  n=19  26.3% win  -58.9pp   n=35  60.0% win  +135.3pp
+TEST   2025-03..26-06  n= 4  75.0% win  +15.6pp   n=34  41.2% win   -21.7pp
+```
+
+The sign **reverses** out-of-sample, on n=4. And 17 of the 23 high-margin trades fall
+between 2024-03 and 2025-01 — it is one bull-market episode, not a relationship.
+**Not implemented.**
+
+**The pattern worth naming.** Four consecutive refinement attempts have now failed the same
+way: hyperopt params (train-fitted, worse out-of-sample), v1.9's wider stop (clean
+out-of-sample validation, failed live), the exit-logic variants (fixed one regime, broke
+the other), and now regime sizing (sign reversal out-of-sample).
+
+The common cause is sample size. The backtest is **92 trades over 27 months on 3 pairs**.
+Any conditioning — by regime, by quartile, by window — splits that into groups of ~20, and
+at n=20 noise dominates whatever structure exists. The strategy is not necessarily
+unrefinable; **this dataset cannot distinguish a real refinement from a lucky one.**
+
+That reframes the top priority. The blocker is not strategy design, it is **sample size**:
+
+1. `config-backtest.json` runs 3 pairs while live runs 8. Downloading Binance data for the
+   other five would roughly double-to-triple the trade count at zero strategy risk. This is
+   now the single highest-value piece of work available.
+2. Until then, treat any refinement that "works" in backtest as unproven regardless of how
+   clean its validation looks — v1.9 passed a textbook train/test split and still cost two
+   weeks of live data.
+3. Live paper trading continues to accumulate the only sample that is not subject to this
+   problem.
+
 ### Exit-logic fix attempted and REJECTED (2026-10-13) — it is structural, not a bug
 
 Follow-up to the v1.9 finding below: the indicator exit cannot fire in a downtrend, so the
