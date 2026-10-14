@@ -314,6 +314,70 @@ def drift_report(overall: Bucket, baseline: dict) -> list[str]:
     return lines
 
 
+def benchmark_lines(trades: list[dict], acct_pct: float, max_dd_pct: float, args) -> list[str]:
+    """
+    Score against the benchmark, every time, automatically.
+
+    For four months this project reported returns with nothing beside them, and
+    "is it working?" kept producing contradictory answers because each attempt
+    silently compared against something different — zero, then buy-and-hold, then
+    nothing. Three wrong strategy conclusions came out of that. The benchmark is
+    15% of the 8-pair basket + 85% T-bills; see the top of docs/ROADMAP.md.
+    """
+    dated = [t for t in trades if t["close_date"] and t.get("open_date")]
+    if not dated:
+        return []
+    span_days = (max(t["close_date"] for t in dated)
+                 - min(t["open_date"] for t in dated)).total_seconds() / 86400.0
+    if span_days <= 0:
+        return []
+
+    out = [f"── Benchmark: {args.benchmark_name} ──"]
+
+    # Annualising a short window is nonsense — a good fortnight extrapolates to
+    # triple digits. Say so rather than printing an impressive-looking number.
+    if span_days < args.benchmark_min_days:
+        out.append(
+            f"  Sample spans {span_days:.0f} days — too short to annualise "
+            f"(need {args.benchmark_min_days:.0f}+). Raw: {acct_pct:+.2f}% of account, "
+            f"maxDD {max_dd_pct:.2f}%."
+        )
+        out.append(
+            f"  Benchmark over a full cycle: {args.benchmark_cagr:+.1f}%/yr at "
+            f"{args.benchmark_dd:.0f}% maxDD. For a like-for-like read, re-measure the "
+            f"benchmark over these same {span_days:.0f} days."
+        )
+        return out
+
+    cagr = ((1 + acct_pct / 100.0) ** (365.25 / span_days) - 1) * 100.0
+    beats_ret = cagr > args.benchmark_cagr
+    # max_drawdown_pct() returns a NEGATIVE number; compare magnitudes. Without the
+    # abs() a -40% drawdown reads as "lower than 13.3" and scores as a win.
+    dd_mag = abs(max_dd_pct)
+    beats_dd = dd_mag < args.benchmark_dd
+    out.append(
+        f"  strategy  {cagr:+.2f}%/yr (annualised from {span_days:.0f}d) · maxDD {dd_mag:.2f}%"
+    )
+    out.append(
+        f"  benchmark {args.benchmark_cagr:+.2f}%/yr · maxDD {args.benchmark_dd:.2f}%"
+    )
+    if beats_ret and beats_dd:
+        out.append("  ✅ Beats the benchmark on both return and drawdown.")
+    elif beats_ret:
+        out.append("  ◐ Beats on return, worse drawdown. Risk-adjusted comparison needed.")
+    elif beats_dd:
+        out.append("  ◐ Lower drawdown but lower return — buy the same profile with a "
+                   "smaller static allocation and no bot.")
+    else:
+        out.append("  ⛔ LOSES to the benchmark on both. Per ROADMAP Phase 4, real capital "
+                   "is not appropriate while this holds.")
+    out.append(
+        "  ⓘ Annualised from a short live sample is noisy. Re-measure the benchmark over "
+        "the same window before acting on this."
+    )
+    return out
+
+
 def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
     """
     Time-in-market: what fraction of the elapsed period capital was actually at risk.
@@ -456,6 +520,14 @@ def main() -> None:
                     help="only score trades OPENED on/after this date. Use it to exclude known-bad "
                          "periods (outages, pre-upgrade code) explicitly rather than hoping a "
                          "heuristic notices them — see docs/STRATEGY-NOTES.md for known boundaries")
+    ap.add_argument("--benchmark-name", default="15% basket + 85% T-bills",
+                    help="label for the benchmark (see top of docs/ROADMAP.md)")
+    ap.add_argument("--benchmark-cagr", type=float, default=9.7,
+                    help="benchmark annualised return %%, measured 2023-03..2026-10 (default: 9.7)")
+    ap.add_argument("--benchmark-dd", type=float, default=13.3,
+                    help="benchmark max drawdown %% over the same window (default: 13.3)")
+    ap.add_argument("--benchmark-min-days", type=float, default=90.0,
+                    help="below this span, refuse to annualise and say so (default: 90)")
     ap.add_argument("--stake", type=float, default=100.0,
                     help="stake_amount from the config, for account-relative return (default: 100)")
     ap.add_argument("--wallet", type=float, default=1000.0,
@@ -520,6 +592,8 @@ def main() -> None:
             "and is not an account return."
         )
         lines.extend(exposure_lines(trades, args.max_open_trades))
+        lines.append("")
+        lines.extend(benchmark_lines(trades, acct, max_drawdown_pct(trades), args))
         lines.append("")
         lines.append("── Entry-tag scoreboard (which layer combos earn) ──")
         lines.extend(fmt_bucket_table(bucketize(trades, "enter_tag"), args.min_trades, "tag"))

@@ -3,6 +3,60 @@
 A phased plan. The phases are ordered for a reason — don't jump ahead. Each gate exists to
 protect you from the most common (and expensive) mistakes.
 
+---
+
+## THE BENCHMARK (set 2026-10-14 — read this before any other section)
+
+**Every result in this project is scored against: 15% of the 8-pair basket + 85% T-bills.**
+
+For four months this project had no benchmark, and "is it working?" kept producing
+contradictory answers because each attempt silently compared against something different —
+zero, then buy-and-hold, then nothing at all. Three wrong strategy conclusions came out of
+that. A benchmark fixes the question before the measurement.
+
+Measured over 2023-03-01 → 2026-10-01 (a +254% bull followed by a −43% bear):
+
+```
+benchmark                   total     CAGR    maxDD   Sharpe  Sortino  Calmar
+BTC only                  +259.2%   +42.8%   -53.0%    0.83     1.28    0.81
+Basket (8, equal-weight)   +92.1%   +20.0%   -74.4%    0.50     0.75    0.27
+50% basket + 50% cash      +81.6%   +18.1%   -44.4%    0.56     0.84    0.41
+25% basket + 75% cash      +53.2%   +12.6%   -23.3%    0.67     1.01    0.54
+15% basket + 85% cash      +39.4%    +9.7%   -13.3%    0.83     1.24    0.73   <-- BENCHMARK
+100% cash @ 4.5%           +17.5%    +4.6%     0.00%     --       --      --
+--------------------------------------------------------------------------------
+strategy (atr 3.9)          +9.6%    +2.6%   -10.7%    0.36     0.36    0.24
+```
+
+### The bar
+
+**CAGR > 9.7% with maxDD < 13%, or Sharpe > 0.83.**
+
+### Why this one
+
+- **Risk-matched.** 13.3% drawdown against the strategy's 10.7% — close enough that the
+  comparison is about skill, not about who took more risk.
+- **Trivially implementable.** Anyone can hold 15% in a basket and 85% in T-bills. A
+  strategy that cannot beat that has no reason to exist, whatever its backtest says.
+- **It is currently winning.** The strategy returns +2.6%/yr against 4.6% risk-free — it
+  **underperforms plain cash** while carrying a 10.7% drawdown cash does not have.
+
+Note the bar is roughly BTC-only's risk-adjusted profile (Sharpe 0.83). That is deliberate
+and it is high: you are asking a strategy to match holding Bitcoin on a risk-adjusted
+basis. If that seems unreasonable, the honest conclusion is to hold Bitcoin.
+
+### Rules
+
+1. **Never report a return without the benchmark beside it.** An absolute number alone has
+   repeatedly produced the wrong conclusion here — see the CORRECTION entries in
+   STRATEGY-NOTES.
+2. **Check units before comparing.** Summed per-trade ratios are not account returns (they
+   differ ~10x at current stake sizing). freqtrade's closed-trade Calmar is not the same
+   statistic as the Calmar above. Both mistakes have already been made.
+3. **Re-measure the benchmark over the same window** as whatever you are scoring. The table
+   above covers one full cycle; a two-week live sample must be compared against the
+   benchmark over those same two weeks, not against these headline figures.
+
 ## Phase 1 — Understand & Backtest ✅ (cleared)
 
 **Goal:** know exactly how the strategy behaves on historical data.
@@ -53,8 +107,16 @@ hyperopt result can't reproduce its edge on data it never saw, throw it out.
 
 ### Go-live readiness checklist (every box must be checked)
 
+- [ ] **BEATS THE BENCHMARK.** CAGR > 9.7% with maxDD < 13%, or Sharpe > 0.83, measured
+      against 15% basket + 85% T-bills **over the same window**. This is the first box for
+      a reason: as of 2026-10-14 the strategy returns +2.6%/yr against 4.6% risk-free, so
+      it currently loses to cash. Real capital in a strategy that loses to its benchmark is
+      strictly worse than doing nothing, and "it might improve" is not evidence.
 - [ ] Paper trading ran for a meaningful period (months, ideally across conditions)
-- [ ] Live dry-run results matched backtest expectations
+- [ ] Live dry-run results matched backtest expectations — **note this is weaker than it
+      sounds here:** L5 is a volume condition and volume is venue-specific, so a backtest on
+      any proxy venue takes different trades than live (~9% disagreement on the L5 gate).
+      Backtests are valid for distribution-level questions, not trade-level prediction
 - [ ] You understand and can stomach the worst drawdown the strategy produced
 - [ ] Lookahead and recursion checks pass on the current code
 - [ ] Fees and slippage are accounted for in your expectations (not just gross returns)
