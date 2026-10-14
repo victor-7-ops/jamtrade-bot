@@ -246,6 +246,68 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Full-cycle verdict (2026-10-14) — a static allocation dominates this strategy
+
+First full-cycle comparison on the 8-pair OKX dataset (285 trades, 2023-03 → 2026-10),
+covering a +254% bull and a -43% bear.
+
+**ATR sweep, train 2023-03..2025-01 / test 2025-01..2026-10:**
+
+```
+atr    train tot   test tot   full cycle   test DD
+2.5      -18.0%     -14.9%      -30.2%      15.45%
+3.0       -7.2%     -13.1%      -19.3%      13.65%
+3.9      +18.6%     -10.2%       +6.5%      12.62%   <- live
+4.5      +19.9%     -10.4%       +7.4%      11.76%
+5.5      +28.8%     -10.3%      +15.6%      12.19%
+7.0      +27.9%      -6.4%      +19.7%       9.21%
+market  +254.2%     -43.1%     +101.5%
+```
+
+Wider stops do look better on this larger sample — 7.0 wins test return, test drawdown and
+full cycle. **Not applied.** The backtest cannot predict trade-level live behaviour (L5 is
+venue-specific, see below) and the last stop change made on weaker evidence cost two weeks
+and a contaminated sample. 3.9 stays live; the live record keeps building under one config.
+
+**The decisive numbers — risk-adjusted, full cycle:**
+
+```
+                     strategy (3.9)   buy & hold (8 pairs equal-weight)
+total                    +9.64%                 +92.11%
+CAGR                        n/a                 +19.97%
+Sharpe  (daily)            0.36                    0.50
+Sortino (daily)            0.36                    0.75
+Calmar                     1.18                    0.27
+max drawdown             -10.69%                 -74.38%
+```
+
+**This is a design problem, not a sizing problem.** If the strategy's Sharpe beat holding,
+low absolute return would just mean "size it up". It does not — 0.36 vs 0.50. Leverage
+would deliver *worse* volatility-adjusted returns than holding the basket.
+
+The strategy's one real edge is drawdown: 10.7% against 74.4%, hence Calmar 1.18 vs 0.27.
+But that can be bought more cheaply. A static ~15% allocation to the same basket, 85% cash:
+
+```
+return  ~ 0.15 x 92.11% = +13.8%      strategy: +9.64%
+maxDD   ~ 0.15 x 74.38% = -11.2%      strategy: -10.69%
+```
+
+**A static fractional allocation roughly matches the drawdown and beats the return**, with
+no bot, no VPS, no monitoring, no outages. With the idle 85% in T-bills it is not close.
+
+Caveats, so this is not overstated: one cycle, one basket, cash modelled at 0% yield for the
+static case, and a constant-fraction drawdown scales linearly while the strategy's is
+path-dependent. The gap is wide enough to survive all three.
+
+**Owner decision 2026-10-14: the profile is not good enough; rethink the approach rather
+than tune it.** Recorded here because the next person to look at an ATR table will see 7.0
+beating 3.9 and be tempted to tune — the problem is a tier above parameter choice.
+
+What a rethink has to beat, stated concretely so it is falsifiable: **a static 15% basket
+allocation returning ~+13.8% at ~11% drawdown over this cycle.** Any redesign that cannot
+clear that bar is not worth operating, however good its backtest looks in isolation.
+
 ### SOLVED (2026-10-13) — why live diverges from backtest: L5 is venue-specific
 
 The standing open question. Answered now that the OKX 8-pair dataset covers the live period.
