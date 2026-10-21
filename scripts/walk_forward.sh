@@ -21,6 +21,18 @@
 # directly comparable to the documented full-range backtests.
 set -euo pipefail
 
+# Resolve the freqtrade binary. A bare `freqtrade` only works when the venv is
+# already activated, which is NOT true under cron, systemd, or a non-interactive
+# ssh command — the script then dies with "command not found" having done nothing.
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -x "$REPO_DIR/.venv/bin/freqtrade" ]; then
+  FREQTRADE="$REPO_DIR/.venv/bin/freqtrade"
+elif [ -x "$REPO_DIR/.venv/Scripts/freqtrade.exe" ]; then
+  FREQTRADE="$REPO_DIR/.venv/Scripts/freqtrade.exe"
+else
+  FREQTRADE="freqtrade"
+fi
+
 CONFIG="${JAMTRADE_CONFIG:-user_data/config-backtest.json}"
 STRATEGY="MultiConfirmationStrategy"
 START="${1:-20230101}"
@@ -66,7 +78,7 @@ while :; do
   export_dir="$RESULTS_DIR/$tag"
   mkdir -p "$export_dir"
 
-  if freqtrade backtesting \
+  if "$FREQTRADE" backtesting \
       --config "$CONFIG" \
       --strategy "$STRATEGY" \
       --timerange "$timerange" \

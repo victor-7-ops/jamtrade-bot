@@ -6,13 +6,25 @@
 # trading lose money.
 set -euo pipefail
 
+# Resolve the freqtrade binary. A bare `freqtrade` only works when the venv is
+# already activated, which is NOT true under cron, systemd, or a non-interactive
+# ssh command — the script then dies with "command not found" having done nothing.
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -x "$REPO_DIR/.venv/bin/freqtrade" ]; then
+  FREQTRADE="$REPO_DIR/.venv/bin/freqtrade"
+elif [ -x "$REPO_DIR/.venv/Scripts/freqtrade.exe" ]; then
+  FREQTRADE="$REPO_DIR/.venv/Scripts/freqtrade.exe"
+else
+  FREQTRADE="freqtrade"
+fi
+
 CONFIG="${JAMTRADE_CONFIG:-user_data/config-backtest.json}"
 STRATEGY="MultiConfirmationStrategy"
 TIMERANGE="${1:-20240101-20250101}"
 
 echo "▶ [1/2] Lookahead bias analysis..."
 echo "   (Does the strategy peek at future candles? It must not.)"
-freqtrade lookahead-analysis \
+"$FREQTRADE" lookahead-analysis \
   --config "$CONFIG" \
   --strategy "$STRATEGY" \
   --timerange "$TIMERANGE" || {
@@ -24,7 +36,7 @@ freqtrade lookahead-analysis \
 echo ""
 echo "▶ [2/2] Recursion analysis..."
 echo "   (Do indicators give different values depending on startup window?)"
-freqtrade recursive-analysis \
+"$FREQTRADE" recursive-analysis \
   --config "$CONFIG" \
   --strategy "$STRATEGY" \
   --timerange "$TIMERANGE" || true
