@@ -32,6 +32,15 @@ elif [ -x "$REPO_DIR/.venv/Scripts/freqtrade.exe" ]; then
 else
   FREQTRADE="freqtrade"
 fi
+if [ -x "$REPO_DIR/.venv/bin/python" ]; then
+  PYBIN="$REPO_DIR/.venv/bin/python"
+elif [ -x "$REPO_DIR/.venv/Scripts/python.exe" ]; then
+  PYBIN="$REPO_DIR/.venv/Scripts/python.exe"
+elif command -v python3 >/dev/null 2>&1; then
+  PYBIN="python3"
+else
+  PYBIN="python"
+fi
 
 CONFIG="${JAMTRADE_CONFIG:-user_data/config-backtest.json}"
 STRATEGY="MultiConfirmationStrategy"
@@ -93,9 +102,24 @@ while :; do
     if [ -z "$latest_zip" ]; then
       echo "  ✕ backtest reported success but no export zip found in $export_dir — see log.txt"
     else
-      inner_json=$(unzip -Z1 "$latest_zip" | grep -E '^backtest-result-[0-9_-]+\.json$' | head -1)
-      unzip -p "$latest_zip" "$inner_json" > "$export_dir/result.json"
-      echo "  ✓ backtest complete → $export_dir/result.json"
+      # Extract with python's stdlib zipfile rather than `unzip`. The EC2 box has
+      # no unzip installed, and the script failed on window 1 having reported the
+      # backtest itself as successful. Python is guaranteed present — it is how
+      # freqtrade runs — so this removes a system dependency rather than adding one.
+      if ! "$PYBIN" -c '
+import sys, zipfile
+zp, out = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(zp) as z:
+    names = [n for n in z.namelist() if n.endswith(".json") and "_config" not in n]
+    if not names:
+        sys.exit("no result json inside " + zp)
+    with z.open(names[0]) as src, open(out, "wb") as dst:
+        dst.write(src.read())
+' "$latest_zip" "$export_dir/result.json"; then
+        echo "  ✕ could not extract result.json from $latest_zip"
+      else
+        echo "  ✓ backtest complete → $export_dir/result.json"
+      fi
     fi
   else
     echo "  ✕ backtest FAILED for this window — see $export_dir/log.txt"
