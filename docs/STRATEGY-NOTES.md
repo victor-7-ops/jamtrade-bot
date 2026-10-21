@@ -246,6 +246,61 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### SUPERSEDES the decay finding (2026-10-21) — there was no decay, there was never a consistent edge
+
+Re-ran the walk-forward on the OKX 8-pair dataset: **13 windows**, 6 months each, 3-month
+step, 2023-03 → 2026-09. The 2026-09-15 analysis that produced the DECAY FLAG used 92
+trades / 3 pairs / 8 windows. Every other conclusion was re-checked against the larger
+sample; this one had not been.
+
+**The decay does not reproduce.**
+
+```
+                      old (92 trades, 3 pairs)   new (285 trades, 8 pairs)
+avg-profit slope         -0.412 pp/window           -0.139 pp/window
+verdict                  ⚠️ DECAY FLAG              ✅ no meaningful trend
+```
+
+Per-window on the new data:
+
+```
+win  range                 n   win%    avg%    PF  maxDD%   strat%    hold%   edge_pp  expo%
+ 1   20230301-20230901    32    47%  +0.50%  1.08   3.31%   +0.55%  -10.97%    +11.5    29%
+ 2   20230601-20231201    52    56%  +1.75%  1.83   3.01%   +8.56%  +57.94%    -49.4    31%
+ 3   20230901-20240301    78    53%  +1.39%  1.66   4.37%  +10.52% +204.82%   -194.3    45%
+ 4   20231201-20240601    64    39%  -0.37%  0.89   7.48%   -2.11%  +56.30%    -58.4    48%
+ 5   20240301-20240901    42    33%  -2.17%  0.39   9.23%   -8.84%  -28.11%    +19.3    28%
+ 6   20240601-20241201    47    57%  +2.49%  2.39   4.44%  +11.09%  +66.48%    -55.4    29%
+ 7   20240901-20250301    56    48%  +2.19%  1.87   3.49%  +12.88%  +58.53%    -45.6    41%
+ 8   20241201-20250601    37    35%  -1.47%  0.80   5.90%   -2.74%  -26.58%    +23.8    29%
+ 9   20250301-20250901    41    41%  -1.17%  0.73   5.15%   -3.82%  +30.73%    -34.5    27%
+10   20250601-20251201    50    38%  -0.75%  0.77   7.96%   -3.74%  -21.28%    +17.5    30%
+11   20250901-20260301    21    29%  -1.59%  0.49   4.11%   -3.34%  -54.59%    +51.3    10%
+12   20251201-20260601     1     0%  -3.43%  0.00   0.34%   -0.34%  -31.06%    +30.7     0%  (thin)
+13   20260301-20260901     9    67%  +1.16%  2.10   0.56%   +1.11%   -2.21%     +3.3     5%
+```
+
+**What replaces decay is arguably worse: instability.** `stdev/mean = 9.5x`. Window
+averages swing -2.17% to +2.49% with no direction, and the sign tracks regime almost
+perfectly — positive in 2/3/6/7 (bull stretches), negative in 5/8/9/10/11. Mean edge vs
+holding is **-72.9pp in rising markets and +21.1pp in falling ones**, at 29% exposure.
+
+**The narrative changes.** "It worked, then the market moved away from what it was tuned
+on" is not supported. The honest reading is that **the strategy has no consistent edge in
+either direction — it is a bet on regime**, and a full-range backtest number averages over
+regimes that behave nothing like each other.
+
+**This does not change the 2026-10-14 decision**, which rested on the full-cycle
+risk-adjusted comparison (Sharpe 0.36 vs 0.50, losing to cash), not on decay. If anything
+it strengthens it: there is no decayed edge to recover by retuning, so a redesign is the
+only route. The standing bar is unchanged — beat 15% basket + 85% T-bills: CAGR > 9.7% at
+maxDD < 13%.
+
+**Note for any redesign:** the regime-tracking above is the one exploitable-looking pattern
+in this data. Resist it. The 2026-10-13 regime-sizing test found exactly that kind of
+signal in-sample and watched the sign reverse out-of-sample on n=4. Something that
+correlates with regime after the fact is not the same as something that predicts it.
+
 ### Full-cycle verdict (2026-10-14) — a static allocation dominates this strategy
 
 First full-cycle comparison on the 8-pair OKX dataset (285 trades, 2023-03 → 2026-10),
