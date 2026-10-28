@@ -246,6 +246,43 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Drought checked LIVE this time (2026-10-28) — correctly sitting out, confirmed
+
+1 closed trade in the 15 days since the 2026-10-13 revert, against 27 trades in the 29 days
+before it. A 13x collapse in activity. Bot itself healthy: active, 0 restarts, disk 38%, no
+alerts.
+
+Checked the gates **while the drought was happening** — the thing nobody did in July, which
+is why that verdict is still marked unresolvable:
+
+```
+pair         >EMA50d  >EMA200d   ADX4h  ADX>=25  ALL GATES
+BTC/USDT       False      True    24.8    False      False
+ETH/USDT       False     False    28.3     True      False
+SOL/USDT       False      True    22.4    False      False
+ADA/USDT       False     False    31.6     True      False
+XRP/USDT       False     False    18.0    False      False
+LINK/USDT      False     False    27.8     True      False
+DOT/USDT       False     False    28.1     True      False
+AVAX/USDT      False     False    25.3     True      False
+```
+
+**All 8 pairs below their daily EMA50.** That gate alone blocks every entry regardless of
+anything else. ADX is healthy on 5 of 8 — there is a trend, it points down. **Not wedged,
+correctly sitting out.** Confirmed, not inferred.
+
+Two consequences.
+
+**The validation plan has no timeline.** Trade pace swings 13x with regime (0.93/day then
+0.07/day). "Wait for 30 trades in one regime" could be two months or over a year, and which
+one is unknowable in advance. A strategy that cannot be evaluated on a human timescale is
+hard to improve regardless of whether it is any good.
+
+**It sharpens the trend-following comparison.** A trend-follower would be equally flat right
+now — everything is below its moving averages, so same position, same safety. The entire
+return gap came from participation on the way UP, not from better behaviour in drawdowns.
+Both approaches sit out a bear; only one captures the bull.
+
 ### Trend-following test (2026-10-28) — 10x better than this strategy, still loses to sizing
 
 **Diagnosis first.** Mean edge vs holding is -72.9pp in rising markets and +21.1pp in
