@@ -246,6 +246,51 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### FINAL analysis (2026-10-28) — only concentration replicates; stop tuning
+
+Full out-of-sample grid: 3 pair sets x 3 MA lengths x vol-target on/off. Train
+2022-09..2024-09, test 2024-09..2026-10. shift(1) signals, 0.1%/side costs.
+
+```
+corr(train Sharpe, test Sharpe) = +0.12
+best on TRAIN (BTC ma200, Sharpe 1.17)  ->  TEST 0.59
+configs beating benchmark Sharpe 0.84 on TEST: 1 of 18
+```
+
+**The Sharpe 0.90 reported earlier does not survive.** It was full-sample. Split properly,
+train ranking barely predicts test, the best train config collapses 1.17 -> 0.59, and the
+only config beating the benchmark out-of-sample (BTC ma100, 0.93) ranked mid-pack on train
+— it could not have been selected in advance. **Parameter selection on this data is futile**,
+which is now four independent demonstrations of the same thing.
+
+**One finding replicates: concentration.** Mean Sharpe by pair set, both halves:
+
+```
+pairs           TRAIN   TEST
+BTC only         1.03   0.74
+BTC+ETH+SOL      0.92   0.67
+all 8            0.62   0.59
+```
+
+Monotone in *both* halves, across every MA length and both vol-target settings. This is not
+a fitted parameter — it is a structural property that held in data the ranking never saw.
+**The July 2026 expansion from 3 to 8 pairs looks actively harmful**, and the number was
+visible in the benchmark table (BTC Sharpe 0.83 vs basket 0.50) for two weeks before anyone
+followed it up.
+
+Vol targeting: mild help to the diluted basket (test mean 0.55 -> 0.62), mild harm to
+concentrated BTC (0.74 -> 0.73 average). It compensates for diversification damage rather
+than adding anything. Not worth the code.
+
+**Actionable conclusion, and it is small:** reducing the live pairlist is the one change
+supported by out-of-sample evidence. It is a one-line config edit, touches no strategy
+logic, and is the cheapest improvement available. Everything else tested — ATR stops, exit
+logic, regime sizing, trend rules, MA lengths, vol targeting — is noise at this sample size.
+
+**It does not rescue the strategy.** Concentration improves a strategy that returns +2.6%/yr
+against a 4.6% risk-free rate; a better version of something that loses to cash still loses
+to cash. The benchmark stands. The 2026-10-14 decision stands.
+
 ### Drought checked LIVE this time (2026-10-28) — correctly sitting out, confirmed
 
 1 closed trade in the 15 days since the 2026-10-13 revert, against 27 trades in the 29 days
