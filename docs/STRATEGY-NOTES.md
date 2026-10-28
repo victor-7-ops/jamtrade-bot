@@ -282,10 +282,33 @@ Vol targeting: mild help to the diluted basket (test mean 0.55 -> 0.62), mild ha
 concentrated BTC (0.74 -> 0.73 average). It compensates for diversification damage rather
 than adding anything. Not worth the code.
 
-**Actionable conclusion, and it is small:** reducing the live pairlist is the one change
-supported by out-of-sample evidence. It is a one-line config edit, touches no strategy
-logic, and is the cheapest improvement available. Everything else tested — ATR stops, exit
-logic, regime sizing, trend rules, MA lengths, vol targeting — is noise at this sample size.
+**CORRECTION, same day:** the monotone concentration ordering above was measured on the
+**trend rule** and does **not** transfer to this strategy. Tested on MultiConfirmation
+itself, full period, OKX 8-pair data:
+
+```
+pairs                    trades   avg/trade    total
+3  (BTC/ETH/SOL)            169      +0.65%   +11.61%
+1  (BTC only)                68      -0.17%    -1.19%
+8  (current live)           285      +0.32%    +9.64%
+```
+
+**BTC-only is the WORST, not the best.** This strategy has a middle optimum. The mechanism
+is structural: with `max_open_trades = 3`, a single pair can only ever fill one slot, so the
+strategy is permanently under-deployed and cannot use its own capital. A dip-buyer needs
+enough candidates to fill its slots; a trend-follower holding continuously does not. The two
+rules have opposite pair-count preferences for a concrete reason.
+
+So the finding narrows to **3 pairs beat 8 by ~2pp**, and single-pair is ruled out.
+
+**Actionable conclusion, and it is small and UNCONFIRMED:** reverting the live pairlist from
+8 to 3 is the one change with any support. It is a one-line config edit touching no strategy
+logic. **But +11.61% vs +9.64% is a full-sample comparison**, which is exactly the kind of
+difference that has failed every train/test split in this project — including the Sharpe 0.90
+measured an hour earlier. Do not deploy it on this evidence; split it first.
+
+Everything else tested — ATR stops, exit logic, regime sizing, trend rules, MA lengths, vol
+targeting — is noise at this sample size.
 
 **It does not rescue the strategy.** Concentration improves a strategy that returns +2.6%/yr
 against a 4.6% risk-free rate; a better version of something that loses to cash still loses
