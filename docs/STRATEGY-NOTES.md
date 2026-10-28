@@ -246,6 +246,61 @@ sideways ones — which is the majority of the time. Two filters address this:
   non-panicky market is the strategy correctly sitting out, not malfunctioning. No code/config
   change made. Re-check if drought extends multiple weeks with no regime shift.
 
+### Trend-following test (2026-10-28) — 10x better than this strategy, still loses to sizing
+
+**Diagnosis first.** Mean edge vs holding is -72.9pp in rising markets and +21.1pp in
+falling ones, at 29% exposure. The losses are not bad trades, they are **absence**: in the
++254% train window the strategy captured +18.6%. Crypto returns are violently right-skewed,
+a handful of weeks carry most of the gain, and a dip-buyer is least invested exactly when
+price is running. That is the design choosing to miss the fat tail, not a tuning fault.
+
+**Test.** The crudest possible inversion — hold what is above its 200-day MA, else cash at
+4.5%. No parameters, no layers, no volume gate. Signals use `shift(1)` (no lookahead),
+switching modelled at 0.1% per side. Same window as the benchmark, 2023-03 → 2026-10, OKX
+8-pair data.
+
+```
+variant                     total    CAGR    maxDD  Sharpe  Sortino  Calmar
+buy & hold basket          +98.1%  +21.0%   -74.4%    0.51     0.77    0.28
+static 15% + 85% cash      +40.0%   +9.8%   -13.3%    0.84     1.26    0.74
+trend: basket >200dMA      +73.9%  +16.7%   -62.0%    0.47     0.45    0.27
+trend: per-asset >200dMA  +113.4%  +23.5%   -48.6%    0.60     0.64    0.48
+STRATEGY (atr 3.9)          +9.6%   +2.6%   -10.7%    0.36     0.36    0.24
+
+time invested: basket-level 49%, per-asset 45%  (strategy: 29%)
+switches: 38 basket / 36 turnover units per-asset
+```
+
+**Two findings, and they point opposite ways.**
+
+1. **The diagnosis is confirmed.** A two-line rule returns +113.4% against this strategy's
+   +9.6%, at higher Sharpe, beating buy-and-hold on *both* return and drawdown. Four months
+   of multi-confirmation layers, hyperopt and ATR tuning are beaten decisively by "hold what
+   is trending up". Per-asset beats basket-level (+113.4% vs +73.9%) — diversified signals
+   matter more than the rule itself.
+
+2. **It still loses to the static blend risk-adjusted** — Sharpe 0.60 vs 0.84, Calmar 0.48
+   vs 0.74. **This gap cannot be closed by sizing**: scaling a strategy up or down leaves
+   Sharpe unchanged, so at every position size the static blend returns more per unit of
+   risk. Its -48.6% drawdown is also far outside what the current design targets.
+
+**Conclusion: nothing tested beats sizing.** Timing helped enormously relative to the
+current strategy and not at all relative to holding less. The benchmark survives everything
+thrown at it so far.
+
+**Caveats, stated so this is not over-read.** One cycle (2023-2026), one basket, one
+rule. A mostly-cash portfolio gets a flattering Sharpe by construction — low volatility is
+most of it. The window contains a once-in-a-cycle bull followed by a crash, which suits a
+trend filter's best case and a static blend's best case simultaneously. The trend result is
+also a single untuned rule with no out-of-sample split; **treat +113% as a direction, not an
+estimate**, and walk-forward it before believing the number.
+
+**If a redesign happens, start from the trend rule, not from this strategy.** It is simpler,
+more robust (no venue-specific volume gate, no knife-edge thresholds), participates in the
+right tail, and already outperforms by 10x before any tuning. The bar is unchanged: beat
+15% basket + 85% T-bills at CAGR > 9.7% / maxDD < 13%, which the trend rule does **not**
+currently clear on a risk-adjusted basis.
+
 ### SUPERSEDES the decay finding (2026-10-21) — there was no decay, there was never a consistent edge
 
 Re-ran the walk-forward on the OKX 8-pair dataset: **13 windows**, 6 months each, 3-month
