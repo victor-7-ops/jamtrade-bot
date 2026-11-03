@@ -1300,3 +1300,76 @@ it is a loss, not a match.
 This is consistent with every out-of-sample test run on this strategy since
 2026-10-13. The owner decision from that date ("Not good enough — rethink the
 approach") still stands, and this test is further evidence for it rather than against.
+
+## 2026-11-04 — Allocation rules tested: no alpha, but the risk dial is real
+
+New script `scripts/allocation_test.py` (research only, places no orders). Tests the
+one finding that replicated in this project — that *how much you hold* mattered more
+than *when you traded* — with a two-knob rule: hold `w` of an equal-weight basket,
+rebalance every `n` days, optionally drop pairs below their 200d SMA.
+
+The ROADMAP 15%-basket benchmark **is** this rule at w=0.15/gate=off, so it is
+simulated from the same candles over the same window as every candidate. That closes
+the comparison hole ROADMAP rule 3 warns about, and it is the first time in this
+project that a result and its benchmark were measured on identical data.
+
+### Result: one survivor, and it does not hold up
+
+`w=15% gate=on rebal=90d` beat the benchmark in both halves — but only via the
+Sharpe clause:
+
+```
+                     CAGR vs bench     maxDD vs bench    Sharpe vs bench
+train  gate=on      12.8% vs 13.7%    -7.7% vs  -8.2%    1.42 vs 1.20
+test   gate=on       4.8% vs  8.2%    -7.0% vs -13.1%    0.92 vs 0.81
+```
+
+**It earned less money than the benchmark in both halves.** Lower volatility lifted
+Sharpe while returns fell. Test-half CAGR 4.8% against T-bills at 4.5% is cash within
+noise. Robustness checks were run anyway:
+
+- **Fee 1.0% (4x worse than Kraken taker):** still passes. Test half 10.7% vs
+  benchmark 19.5% — half the return, Sharpe 0.86 vs 0.80.
+- **Leave-one-out across all 8 pairs:** passes 6 of 8; fails when ETH or DOT is
+  dropped. The Sharpe margin is thin enough for one pair to flip it.
+
+So it is moderately robust at being *lower-returning*. Not an edge.
+
+### The weakness in my own decision rule
+
+The rule allowed "higher Sharpe" as an alternative to "higher CAGR at no worse
+drawdown" — faithful to the ROADMAP bar, but applied *relatively* it lets a
+de-risked variant pass while making less money. Same shape as the nine prior
+corrections: a ratio flattered a configuration that earned less. The rule was NOT
+edited after seeing this output (that is how noise gets fitted). **Before the next
+run, the bar should require not losing money against the benchmark.**
+
+### What did replicate: the gate is a volatility dial, not alpha
+
+Across every weight in the test half, the SMA gate cut return and drawdown together:
+
+```
+test half, rebal 30d      return (off -> on)     maxDD (off -> on)
+w=25%                     19.1%  ->   3.7%       -22.2% -> -14.2%
+w=40%                     19.6%  ->  -0.9%       -35.4% -> -22.3%
+w=60%                     14.7%  ->  -7.7%       -51.0% -> -32.2%
+```
+
+Monotone, consistent, and consistent with the earlier finding that this project's
+only demonstrated skill is drawdown avoidance. Useful to know; it is risk control,
+not profit.
+
+### Scoreboard for the same test window (2025-01 -> 2026-10)
+
+```
+MultiConfirmationStrategy (8 pairs)      -10.17%
+MultiConfirmationStrategy (3 pairs)       -0.72%
+allocation rule, best survivor            +4.8%/yr   (~= T-bills)
+15% basket + 85% T-bills (BENCHMARK)      +8.2%/yr
+```
+
+The benchmark beat the five-layer strategy by roughly 18 percentage points on the
+same candles, and no allocation variant beat the benchmark on return. **Conclusion
+unchanged: the benchmark stands, and holding it needs no bot.** The owner decision
+of 2026-10-14 ("Not good enough — rethink the approach") now has a fifth independent
+test behind it.
