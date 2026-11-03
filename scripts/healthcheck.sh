@@ -136,11 +136,25 @@ ping_watchdog "/fail"
 MSG="🩺 JamTrade healthcheck found issues on $(hostname):"$'\n'"${PROBLEMS%$'\n'}"
 echo "$MSG"
 
+# Alert DELIVERY must be as visible as the alert itself.
+#
+# This block used to end in `>/dev/null 2>&1 || true`, which discarded curl's
+# error AND its exit status. On 2026-11-04 the Telegram token turned out to be
+# dead (api.telegram.org answers instantly, a bogus token 401s in 0.26s, but the
+# real token gets no response at all) -- and this script would have reported
+# nothing while believing it had alerted. A healthcheck whose alert path fails
+# silently is the same trap as one watching the wrong thing: it manufactures
+# confidence. Exit status stays 1 either way, because the problems above are real
+# regardless of whether the message got out.
 if [ -n "${TG_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
-  curl -fsS --max-time 15 \
-    -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-    --data-urlencode "chat_id=${TG_CHAT_ID}" \
-    --data-urlencode "text=${MSG}" >/dev/null 2>&1 || true
+  if ! curl -fsS --max-time 15 \
+      -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${TG_CHAT_ID}" \
+      --data-urlencode "text=${MSG}" >/dev/null; then
+    echo "ALERT DELIVERY FAILED: the problems above were NOT delivered to Telegram." >&2
+  fi
+else
+  echo "ALERT DELIVERY SKIPPED: TG_TOKEN / TG_CHAT_ID unset; problems above were NOT delivered." >&2
 fi
 
 exit 1

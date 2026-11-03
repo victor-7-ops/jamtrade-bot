@@ -50,6 +50,10 @@ MSG="$(printf '%s\n' \
 # report into no report at all.
 MSG="${MSG:0:4000}"
 
+# Print the report before attempting delivery, so a delivery failure never costs
+# the data -- it stays in the journal (`journalctl -u jamtrade-scoreboard`).
+printf '%s\n' "$MSG"
+
 if [ -n "${TG_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
   curl -fsS --max-time 20 \
     -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
