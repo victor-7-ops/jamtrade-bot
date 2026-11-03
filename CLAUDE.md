@@ -64,6 +64,7 @@ jamtrade-bot/
 ├── requirements.txt                # python deps
 ├── .gitignore                      # keeps secrets/data out of git
 ├── docs/
+│   ├── METHODOLOGY.md              # ← transferable lessons; read this if nothing else
 │   ├── HANDOFF-TO-CLAUDE-CODE.md   # sandbox limits + first-session steps (historical)
 │   ├── FIRST-SESSION-LOG.md        # what the first real session fixed
 │   ├── SETUP-GUIDE.md              # install + run instructions
@@ -88,7 +89,9 @@ jamtrade-bot/
 │   ├── aws-setup.sh                # EC2 provisioning helper
 │   ├── signal_advisor.py           # ADVISORY-ONLY buy/hold/sell Telegram pings
 │   ├── sentiment.py                # market-mood CONTEXT (aggregated, never a trigger)
-│   └── healthcheck.sh              # deployment health check (pings only on failure)
+│   ├── healthcheck.sh              # health check (silent unless broken; logs failed sends)
+│   ├── scoreboard_ping.sh          # monthly scoreboard to Telegram (always sends)
+│   └── allocation_test.py          # allocation research; benchmark from the same candles
 └── user_data/
     ├── config-dryrun.json          # paper trading config (dry_run=true, no secrets)
     ├── backtest_baseline.json      # reference numbers for drift checks
