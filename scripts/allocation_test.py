@@ -52,7 +52,7 @@ import pandas as pd
 CASH_APY = 0.045
 # Kraken taker fee, pinned the same way config-dryrun.json pins it (ccxt reports
 # taker=None for Kraken, which once multiplied a live exit into a TypeError).
-FEE = 0.0026
+FEE = 0.0026  # overridable with --fee, to test whether an edge survives worse costs
 TRADING_DAYS = 365  # crypto trades every day; no 252-day convention here
 
 DEFAULT_PAIRS = [
@@ -65,7 +65,7 @@ BENCHMARK = (0.15, False)  # (weight, gate) -- the ROADMAP bar
 
 
 def simulate(closes: pd.DataFrame, weight: float, rebalance_days: int,
-             gate: bool, sma_window: int = 200) -> pd.Series:
+             gate: bool, sma_window: int = 200, fee: float = FEE) -> pd.Series:
     """Daily equity curve for: hold `weight` of an equal-weight basket, rebalanced
     every `rebalance_days`, remainder in cash at CASH_APY.
 
@@ -104,12 +104,12 @@ def simulate(closes: pd.DataFrame, weight: float, rebalance_days: int,
 
             current_value = units * price
             turnover = float((target_value - current_value).abs().sum())
-            fee = turnover * FEE
+            cost = turnover * fee
             # Fee is paid out of the basket side, so cash holds exactly the
             # remainder and equity drops by the fee rather than silently
             # absorbing it.
             units = target_value / price
-            cash = total - float(target_value.sum()) - fee
+            cash = total - float(target_value.sum()) - cost
 
         equity.append(cash + float((units * price).sum()))
 
@@ -186,6 +186,8 @@ def main() -> int:
     ap.add_argument("--weights", nargs="+", type=float, default=[0.15, 0.25, 0.40, 0.60])
     ap.add_argument("--rebalance-days", nargs="+", type=int, default=[30, 90])
     ap.add_argument("--sma-window", type=int, default=200)
+    ap.add_argument("--fee", type=float, default=FEE,
+                    help=f"per-side fee on rebalance turnover (default {FEE})")
     ap.add_argument("--selftest", action="store_true",
                     help="run assertions on synthetic data, no candles needed")
     args = ap.parse_args()
@@ -213,7 +215,7 @@ def main() -> int:
             print(f"  {'config':<22}{'total':>9}{'CAGR':>9}{'maxDD':>9}"
                   f"{'Sharpe':>8}{'Sortino':>9}{'Calmar':>8}")
             for weight, gate in configs:
-                m = metrics(simulate(window, weight, rebal, gate, args.sma_window))
+                m = metrics(simulate(window, weight, rebal, gate, args.sma_window, args.fee))
                 label = f"w={weight:.0%} gate={'on' if gate else 'off'}"
                 tag = "  <-- BENCHMARK" if (weight, gate) == BENCHMARK else ""
                 print(f"  {label:<22}{m['total']:>8.1%}{m['cagr']:>9.1%}{m['max_dd']:>9.1%}"
