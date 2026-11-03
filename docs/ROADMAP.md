@@ -57,6 +57,36 @@ basis. If that seems unreasonable, the honest conclusion is to hold Bitcoin.
    above covers one full cycle; a two-week live sample must be compared against the
    benchmark over those same two weeks, not against these headline figures.
 
+### Evidence log — what has been scored against this bar
+
+Five independent out-of-sample tests since the bar was set. None cleared it.
+
+| date | what was tested | out-of-sample result |
+|------|-----------------|----------------------|
+| 2026-10-13 | ATR stop multiplier sweep (1.5–9.0) | in-sample gain did not replicate; reverted |
+| 2026-10-14 | regime-aware position sizing | no edge once exposure was accounted for |
+| 2026-10-20 | exit-logic variants for downtrends (4 tried) | all rejected, none improved the test half |
+| 2026-11-04 | pairlist 3 vs 8 pairs | split (8 wins train, 3 wins test) — rule not met |
+| 2026-11-04 | allocation rules, 2 knobs (`scripts/allocation_test.py`) | nothing beat the benchmark on return |
+
+Measured on identical OKX candles over 2025-01-01 → 2026-10-01:
+
+```
+MultiConfirmationStrategy (8 pairs)      -10.17% total
+MultiConfirmationStrategy (3 pairs)       -0.72% total
+best allocation variant                   +4.8%/yr   (~= T-bills, 4.5%)
+15% basket + 85% T-bills (BENCHMARK)      +8.2%/yr   <-- still winning
+```
+
+The benchmark beat the five-layer strategy by roughly 18 percentage points on the
+same data. The owner decision of 2026-10-14 — *"Not good enough, rethink the
+approach"* — stands, with five tests behind it rather than one.
+
+What did replicate, and is worth keeping: the SMA/HTF gating cuts return and
+drawdown **together**, monotonically across position weights. That is a risk dial
+anyone can set, not an edge. This project has demonstrated drawdown avoidance and
+has not demonstrated alpha.
+
 ## Phase 1 — Understand & Backtest ✅ (cleared)
 
 **Goal:** know exactly how the strategy behaves on historical data.
@@ -73,11 +103,23 @@ basis. If that seems unreasonable, the honest conclusion is to hold Bitcoin.
 
 **Goal:** see if backtest behavior survives contact with the real, live market.
 
-> **Status (2026-06-17):** a dry-run has been live on the Binance feed since
-> 2026-06-04 (`tradesv3.dryrun.sqlite`). It was started on pre-v1.3 code, so its
-> paper history does **not** reflect the current strategy (v1.7). To make Phase 2
-> meaningful it must be restarted on v1.7 — ideally with a fresh paper DB so the
-> baseline is clean. Clock the "weeks to months" from that restart, not from 6/04.
+> **Status (2026-11-04):** the dry-run runs on an EC2 t3.micro against the Kraken
+> feed, `active`, 0 restarts, uptime monitoring live and alarm-tested. Since the
+> 2026-10-13 revert it has closed **2 trades in 21 days** (0% win, -0.45% of
+> account, 12% exposure) — far too few to read. That is not a malfunction: all 8
+> pairs sit below their daily EMA50, so the HTF gates correctly block entries. The
+> bot is sitting out a drought, which is what it is built to do.
+>
+> Phase 2's exit criterion ("live results roughly consistent with backtest") needs
+> a caveat learned the hard way: L5 is a volume condition and volume is
+> venue-specific, so a backtest on any proxy venue takes *different trades* than
+> live (~9% disagreement on the L5 gate). Matched trades agree to ~0.2pp. Backtests
+> here are valid for distribution-level questions, not trade-level prediction.
+>
+> **Phase 2 has largely answered its question, and the answer is negative** — see
+> the evidence log above. Leaving the paper trade running costs nothing and remains
+> the only honest source of new data, but it is no longer waiting on more paper
+> history to make a decision.
 
 - [~] Run `scripts/dryrun.sh` (dry-run, fake money, real prices) — running, but on stale code; restart on v1.7
 - [ ] Let it run for **weeks to months** — resist the urge to judge it in days
@@ -149,7 +191,10 @@ Loose ideas to explore later, once the foundation is solid:
 - ~~A small web dashboard (ties into your JamSpace / .NET interests) to monitor trades~~ —
   done (static-HTML version): `scripts/dashboard.py`. No server, regenerate any time.
   A live .NET version remains open if you want something richer later.
-- Portfolio-level position sizing instead of fixed stake
+- ~~Portfolio-level position sizing instead of fixed stake~~ — tested 2026-11-04 via
+  `scripts/allocation_test.py`. Sizing does dominate signal choice, but no weighting
+  beat the benchmark on return; the gate only trades return for drawdown. Answered,
+  negative.
 - Alternative regime detection (e.g. volatility regimes, not just ADX)
 - ~~Walk-forward automation to continuously re-validate as new data arrives~~ — done:
   `scripts/walk_forward.sh` + `scripts/walk_forward_report.py` (rolling out-of-sample
