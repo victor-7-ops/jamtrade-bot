@@ -1249,3 +1249,54 @@ was really 25, and the "score capped at 2/6" was on a 6-layer scale the bot no l
 - Lookahead/recursion check: pass/fail.
 - Verdict: keep / revert.
 -->
+
+## 2026-11-04 — Pairlist train/test split: no change, and a worse finding underneath
+
+Ran the pending 3-vs-8 pairlist test as a train/test split on OKX data (EC2 box).
+Decision rule set in advance: **3 pairs must beat 8 in BOTH halves, or the pairlist
+stays at 8.**
+
+```
+window                    3 pairs              8 pairs
+train 2023-03→2025-01    +11.24%  dd 5.05%   +18.60%  dd 9.01%   <- 8 wins
+test  2025-01→2026-10     -0.72%  dd 4.58%   -10.17%  dd 12.62%  <- 3 wins
+trades                    119 / 50             190 / 95
+Sharpe (daily wallet)     0.97 / -0.08         1.05 / -0.77
+```
+
+**Result: pairlist stays at 8.** The rule was not met — 3 pairs lost the train half
+outright. No code change.
+
+### CORRECTION to the 2026-11-03 entry
+
+That entry recorded "3 pairs (+11.61%) > 8 pairs (+9.64%)" on the full sample and
+read it as a mild preference for 3. Those figures are these two halves *summed*, and
+the sum hides a sign flip: 8 pairs is better in the bull half and worse in the bear
+half. The full-sample ordering is an artifact of where the two halves happen to
+cancel. This is the same class of mistake as the earlier Sharpe 0.90 reading, which
+also collapsed once split.
+
+### What the split actually shows
+
+8 pairs takes ~60% more trades than 3 and amplifies the market in both directions:
+bigger gain in the bull window, bigger hole in the bear window, with drawdown scaling
+the same way (9.01% vs 5.05%, 12.62% vs 4.58%). That is bet sizing, not selection
+skill. Neither pairlist is "better" — the market direction decides, and the pairlist
+only sets the multiplier.
+
+### The finding that matters more than the pairlist
+
+**Both configs lose money out-of-sample.** Over 2025-01→2026-10 (21 months), 3 pairs
+returned -0.72% and 8 pairs -10.17%, while T-bills paid roughly 4.5%/yr. Cash beat
+both, so no benchmark re-measurement is needed to call the result: the ROADMAP bar
+(CAGR > 9.7% with maxDD < 13%, or Sharpe > 0.83) is not close in the test half, where
+both Sharpes are negative.
+
+The best number in the whole table — 8 pairs, train half, ~9.8%/yr — only *matches*
+the benchmark's full-cycle average, and it does so during a window in which the
+benchmark itself returned far more than its full-cycle average. Scored like-for-like
+it is a loss, not a match.
+
+This is consistent with every out-of-sample test run on this strategy since
+2026-10-13. The owner decision from that date ("Not good enough — rethink the
+approach") still stands, and this test is further evidence for it rather than against.
