@@ -137,9 +137,21 @@ def metrics(equity: pd.Series) -> dict:
 
 
 def beats(cand: dict, bench: dict) -> bool:
-    """The ROADMAP bar: higher CAGR at no worse drawdown, or a higher Sharpe."""
+    """The ROADMAP bar, with the 2026-11-04 fix: higher CAGR at no worse drawdown,
+    or a higher Sharpe **without earning less than the benchmark**.
+
+    The original version accepted any higher Sharpe. Applied relatively that is too
+    generous: on 2026-11-04 it passed w=15%/gate=on/90d, which earned LESS than the
+    benchmark in both halves and won purely because lower volatility lifts the
+    ratio. A de-risked variant is not an edge. This is the tenth time in this
+    project that a ratio flattered a configuration that made less money, so the
+    return floor is now explicit.
+
+    Tightened with no run pending, so it cannot be fitted to a result already seen.
+    """
+    no_worse_return = cand["cagr"] >= bench["cagr"]
     better_return = cand["cagr"] > bench["cagr"] and abs(cand["max_dd"]) <= abs(bench["max_dd"])
-    better_risk_adj = cand["sharpe"] > bench["sharpe"]
+    better_risk_adj = cand["sharpe"] > bench["sharpe"] and no_worse_return
     return bool(better_return or better_risk_adj)
 
 
@@ -300,7 +312,15 @@ def selftest() -> int:
     # 5. maxDD sign convention -- a real crash must report NEGATIVE (was a bug once).
     assert metrics(simulate(fall, 1.0, 30, gate=False))["max_dd"] < 0, "maxDD not negative in a crash"
 
-    # 6. Guard rails reject nonsense input rather than silently simulating it.
+    # 6. beats() must reject a de-risked variant that earns less than the benchmark.
+    #    These are the real 2026-11-04 test-half figures for w=15%/gate=on/90d.
+    bench_row = {"cagr": 0.082, "max_dd": -0.131, "sharpe": 0.81}
+    derisked = {"cagr": 0.048, "max_dd": -0.070, "sharpe": 0.92}
+    assert not beats(derisked, bench_row), "accepted a variant earning less than benchmark"
+    # ...but a genuinely better one still passes.
+    assert beats({"cagr": 0.12, "max_dd": -0.10, "sharpe": 0.95}, bench_row), "rejected a real win"
+
+    # 7. Guard rails reject nonsense input rather than silently simulating it.
     for bad in ({"weight": 1.5}, {"weight": -0.1}, {"rebalance_days": 0}):
         kwargs = {"weight": 0.5, "rebalance_days": 30, "gate": False} | bad
         try:
