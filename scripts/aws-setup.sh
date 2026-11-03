@@ -137,7 +137,7 @@ sudo systemctl restart systemd-journald
 # Without this, healthcheck.sh is just a script nobody runs. On 2026-09-09 the
 # bot died and stayed dead for five days because nothing was watching it.
 # Hourly, and it only messages you when something is actually wrong.
-echo "[9/9] Installing healthcheck timer..."
+echo "[9/10] Installing healthcheck timer..."
 sudo tee /etc/systemd/system/jamtrade-healthcheck.service > /dev/null <<EOF
 [Unit]
 Description=JamTrade deployment healthcheck (alerts via Telegram on failure)
@@ -163,8 +163,38 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+# ── Step 10: monthly scoreboard ping ───────────────────────────────────────
+# The healthcheck answers "is it alive". This answers "is it working", on a
+# schedule, so the monthly read does not depend on anyone remembering. Fires on
+# the 14th; Persistent=true means a box that was off still sends on next boot.
+echo "[10/10] Installing monthly scoreboard timer..."
+sudo tee /etc/systemd/system/jamtrade-scoreboard.service > /dev/null <<EOF
+[Unit]
+Description=JamTrade monthly paper-trading scoreboard (Telegram)
+
+[Service]
+Type=oneshot
+User=${USER}
+WorkingDirectory=${REPO_DIR}
+EnvironmentFile=-${HOME}/.env
+ExecStart=/bin/bash ${REPO_DIR}/scripts/scoreboard_ping.sh
+EOF
+
+sudo tee /etc/systemd/system/jamtrade-scoreboard.timer > /dev/null <<'EOF'
+[Unit]
+Description=Send the JamTrade scoreboard monthly on the 14th
+
+[Timer]
+OnCalendar=*-*-14 01:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now jamtrade-healthcheck.timer
+sudo systemctl enable --now jamtrade-scoreboard.timer
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
