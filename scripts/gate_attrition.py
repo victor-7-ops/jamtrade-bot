@@ -84,7 +84,9 @@ def load_backtesting(config_path: str):
     config["export"] = "none"
 
     bt = Backtesting(config)
-    bt.strategy.dp = bt.dataprovider
+    # Backtesting only sets .strategy inside its own run loop; _set_strategy is what
+    # it calls there, and it also wires the dataprovider onto the strategy.
+    bt._set_strategy(bt.strategylist[0])
     return bt, config
 
 
