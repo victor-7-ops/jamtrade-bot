@@ -314,6 +314,46 @@ def drift_report(overall: Bucket, baseline: dict) -> list[str]:
     return lines
 
 
+def observation_window(trades: list[dict], args) -> tuple[float, float]:
+    """(observation_days, days_since_last_trade) for the period actually WATCHED.
+
+    Both numbers used to be derived from the trades themselves — span ran from the
+    first open to the last close. That is the wrong denominator, and it fails in the
+    flattering direction twice:
+
+      * On 2026-11-25 this reported "Sample spans 9 days" after 43 days of watching,
+        because the only two trades closed early on. The 90-day annualisation gate is
+        therefore gated on TRADE span, not calendar time, so in a drought it may never
+        open however long the bot runs. docs/ROADMAP.md and the Notion hub both carried
+        the wrong expectation ("by Nov 14 the span clears 90 days") because of this.
+      * Exposure divided held hours by the trade span, so "12% of elapsed time" meant
+        12% of a 9-day window, not of the 43 days capital was actually sitting idle.
+
+    The window is what the operator chose to measure: --since (when given) to now,
+    floored at the first trade so an over-wide --since cannot understate exposure.
+    A drought is then visible as itself rather than as silence.
+    """
+    now = datetime.now(timezone.utc)
+    dated = [t for t in trades if t.get("open_date")]
+    first_open = min((t["open_date"] for t in dated), default=None)
+
+    start = first_open
+    if args.since:
+        try:
+            cutoff = datetime.strptime(args.since, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            cutoff = None
+        if cutoff and (start is None or cutoff < start):
+            start = cutoff
+    if start is None:
+        return 0.0, 0.0
+
+    obs_days = (now - start).total_seconds() / 86400.0
+    closed = [t["close_date"] for t in trades if t.get("close_date")]
+    quiet_days = (now - max(closed)).total_seconds() / 86400.0 if closed else obs_days
+    return max(obs_days, 0.0), max(quiet_days, 0.0)
+
+
 def benchmark_lines(trades: list[dict], acct_pct: float, max_dd_pct: float, args) -> list[str]:
     """
     Score against the benchmark, every time, automatically.
@@ -327,8 +367,9 @@ def benchmark_lines(trades: list[dict], acct_pct: float, max_dd_pct: float, args
     dated = [t for t in trades if t["close_date"] and t.get("open_date")]
     if not dated:
         return []
-    span_days = (max(t["close_date"] for t in dated)
-                 - min(t["open_date"] for t in dated)).total_seconds() / 86400.0
+    # Measured over the period WATCHED, not the period traded -- see
+    # observation_window() for the 2026-11-25 error this replaces.
+    span_days, _ = observation_window(trades, args)
     if span_days <= 0:
         return []
 
@@ -378,7 +419,7 @@ def benchmark_lines(trades: list[dict], acct_pct: float, max_dd_pct: float, args
     return out
 
 
-def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
+def exposure_lines(trades: list[dict], max_open: int, args) -> list[str]:
     """
     Time-in-market: what fraction of the elapsed period capital was actually at risk.
 
@@ -401,9 +442,8 @@ def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
     # Span runs from the first OPEN, not the first close. Measuring from the first
     # close ignores however long the earliest trades were already running and
     # shrinks the denominator, overstating exposure.
-    first = min(t["open_date"] for t in dated)
-    last = max(t["close_date"] for t in dated)
-    span_h = (last - first).total_seconds() / 3600.0
+    obs_days, quiet_days = observation_window(trades, args)
+    span_h = obs_days * 24.0
     if span_h <= 0:
         return []
 
@@ -412,9 +452,19 @@ def exposure_lines(trades: list[dict], max_open: int) -> list[str]:
     cum = 100.0 * sum(t["profit"] for t in trades)
 
     out = [
-        f"Exposure: {exposure:.0f}% of elapsed time with capital at risk "
-        f"(max {max_open} concurrent · {held_h / 24:.0f} trade-days over {span_h / 24:.0f} days)"
+        f"Exposure: {exposure:.1f}% of the WATCHED period with capital at risk "
+        f"(max {max_open} concurrent · {held_h / 24:.0f} trade-days over {span_h / 24:.0f} days watched)"
     ]
+
+    # A drought is a result. Without this line a month of nothing renders exactly
+    # like the day the last trade closed, which is the wrong shape of report for a
+    # project whose signature failure mode is silence.
+    if quiet_days >= 7:
+        out.append(
+            f"  ⚠️  No trade has closed in {quiet_days:.0f} days. Check this is the gates\n"
+            f"     correctly sitting out (all pairs below the daily EMA50) and not a stuck\n"
+            f"     bot — `systemctl is-active jamtrade-dryrun`."
+        )
 
     # Outlier durations usually mean the bot could not act, not that the strategy
     # chose to hold. The 2026-09-09 outage left two positions open for five days
@@ -591,7 +641,7 @@ def main() -> None:
             "'Tot Profit %'. The summed figure is ~10x larger at these stake sizes "
             "and is not an account return."
         )
-        lines.extend(exposure_lines(trades, args.max_open_trades))
+        lines.extend(exposure_lines(trades, args.max_open_trades, args))
         lines.append("")
         lines.extend(benchmark_lines(trades, acct, max_drawdown_pct(trades), args))
         lines.append("")
