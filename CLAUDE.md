@@ -146,10 +146,17 @@ bash scripts/dryrun.sh
 - **Two exchanges, on purpose — do not "fix" this into one.**
   - *Live / dry-run:* **Kraken** (`user_data/config-dryrun.json`). Binance returns HTTP 451
     from US AWS and GitHub IPs.
-  - *Backtesting:* **Binance** (`user_data/config-backtest.json`). Kraken serves NO
-    historical OHLCV at all — `freqtrade download-data` against it fails outright and
-    points you at `--dl-trades`, which is gigabytes per pair. Every documented result in
-    STRATEGY-NOTES was produced on Binance data.
+  - *Backtesting:* **OKX** (`user_data/config-backtest.json`), switched from Binance on
+    2026-10-13. Kraken serves NO historical OHLCV at all — `freqtrade download-data`
+    against it fails outright and points you at `--dl-trades`, which is gigabytes per
+    pair. Binance is no longer usable either: 451 from US AWS, 403 from the owner's
+    network, and the local archive only ever covered 3 pairs. OKX serves all 8 live pairs
+    back to 2022 and tracks Binance to 0.007% mean on daily closes, which tripled the
+    backtest sample (92 → 285 trades).
+  - **OKX is unreachable from the owner's network, so backtests run ON THE EC2 BOX.**
+    Candles live at `user_data/data/okx/` there, not locally.
+  - Results in STRATEGY-NOTES from before 2026-10-13 were produced on Binance data and
+    are not directly comparable to later ones.
   - Freqtrade reads candles from `user_data/data/<exchange>/`, so pointing a backtest at
     the live config silently reads an empty directory. This split is structural: without
     it the project cannot backtest at all.

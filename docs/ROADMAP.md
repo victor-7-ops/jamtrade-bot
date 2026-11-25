@@ -128,9 +128,15 @@ has not demonstrated alpha.
 > history to make a decision.
 
 - [~] Run `scripts/dryrun.sh` (dry-run, fake money, real prices) — running, but on stale code; restart on v1.7
-- [ ] Let it run for **weeks to months** — resist the urge to judge it in days
-- [ ] Optionally enable Telegram alerts to monitor without watching a terminal
-- [ ] Compare live dry-run stats against the backtest for the same period
+- [x] ~~Let it run for **weeks to months**~~ — done. Live since 2026-06-24 on EC2; the
+      current clean regime dates from the 2026-10-13 revert.
+- [x] ~~Optionally enable Telegram alerts~~ — done (`FREQTRADE__TELEGRAM__*` from a VM-only
+      `.env`), plus an hourly healthcheck and a monthly scoreboard timer.
+      **Caveat: the bot token has been the publicly-exposed value since 2026-11-04 and
+      needs re-issuing via @BotFather.**
+- [x] ~~Compare live dry-run stats against the backtest for the same period~~ — done
+      2026-10-13. They diverge because L5 is a volume condition and volume is
+      venue-specific (~9% disagreement on that gate); matched trades agree to ~0.2pp.
 - [ ] Keep a journal: does it behave as expected? Surprises?
 
 **Exit criteria:** live dry-run results are *roughly consistent* with the backtest. If they
@@ -172,6 +178,11 @@ hyperopt result can't reproduce its edge on data it never saw, throw it out.
 - [ ] You've decided your max loss limit *in advance* and how you'll stop
 - [ ] You're treating this as paid education, not as income
 - [ ] **Uptime monitoring is live and you have tested that it actually pages you.**
+      *Deliberately still unticked as of 2026-11-25:* the monitoring exists and was
+      alarm-tested, but the Telegram token has been the publicly-exposed value since
+      2026-11-04, so that alert channel is not trustworthy. Ticking a go-live gate
+      while an alert path is compromised is exactly the false confidence this box
+      exists to prevent. Rotate the token first, re-test, then tick.
       Not ops hygiene — a *risk control*. `stoploss = -0.10` is only enforced while
       the process is alive: the ATR trailing stop is evaluated when the bot processes
       a candle, so a dead bot enforces no stop at all. The 2026-09-09 outage exited a
@@ -179,7 +190,8 @@ hyperopt result can't reproduce its edge on data it never saw, throw it out.
       nothing was running for five days. With real capital, a silent death converts
       your bounded max loss into an unbounded one. Verify: `jamtrade-healthcheck.timer`
       active, and deliberately trip it once to confirm the Telegram message arrives.
-- [ ] You know how you'll be alerted if the VM dies entirely (the healthcheck runs
+- [x] ~~You know how you'll be alerted if the VM dies entirely~~ — done: a healthchecks.io
+      dead-man switch emails on silence, tested end to end 2026-09-15. (The healthcheck runs
       *on* the box, so it cannot report its own host being down)
 
 ### When you do go live
