@@ -152,15 +152,12 @@ def analyse(bt, config, timeframe: str = "4h") -> pd.DataFrame:
 def layer_report(data: pd.DataFrame, layer_names: list[str]) -> None:
     """Why the score gate is tight: how often each layer fires, and whether the
     layers can physically fire together."""
-    print("
-── Why score>=3 is the bottleneck ──")
-    print("
-  Each layer alone")
+    print("\n── Why the score gate is the bottleneck ──")
+    print("\n  Each layer alone")
     for l in layer_names:
         print(f"    {l[1:]:<20} {100 * data[l].mean():>6.1f}%")
 
-    print("
-  Pairwise co-occurrence (how often BOTH fire on the same candle)")
+    print("\n  Pairwise co-occurrence (how often BOTH fire on the same candle)")
     print("                        " + "".join(f"{l[1:4]:>7}" for l in layer_names))
     for a in layer_names:
         row = f"    {a[1:]:<20}"
@@ -169,8 +166,7 @@ def layer_report(data: pd.DataFrame, layer_names: list[str]) -> None:
         print(row)
 
     counts = sum(data[l].astype(int) for l in layer_names)
-    print("
-  Score distribution (how many layers fire at once)")
+    print("\n  Score distribution (how many layers fire at once)")
     for k in range(6):
         pct = 100.0 * (counts == k).mean()
         print(f"    {k} of 5   {pct:>6.2f}%   {'#' * int(pct / 2)}")
