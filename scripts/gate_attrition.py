@@ -108,6 +108,11 @@ def gates_for(strategy, df: pd.DataFrame) -> dict[str, pd.Series]:
         sys.exit(f"1d informative columns missing ({missing}) — 1d candles not downloaded?")
 
     return {
+        "_L1_above_ema50": df["close"] > df["ema50"],
+        "_L2_rsi_oversold": df["rsi"] < strategy.buy_rsi.value,
+        "_L3_macd_up": df["macdhist"] > 0,
+        "_L4_below_bb": df["close"] < df["bb_lowerband"],
+        "_L5_volume_spike": df["volume"] > df["volume_sma"] * float(strategy.buy_vol_mult.value),
         f"score>={strategy.buy_min_score.value}": score >= strategy.buy_min_score.value,
         f"ADX>={strategy.buy_adx_min.value}": df["adx"] >= strategy.buy_adx_min.value,
         "daily>EMA50": df["uptrend_1d"] == 1,
@@ -142,6 +147,33 @@ def analyse(bt, config, timeframe: str = "4h") -> pd.DataFrame:
     if not frames:
         sys.exit("No data loaded. Run scripts/download-data.sh first.")
     return pd.concat(frames, ignore_index=True)
+
+
+def layer_report(data: pd.DataFrame, layer_names: list[str]) -> None:
+    """Why the score gate is tight: how often each layer fires, and whether the
+    layers can physically fire together."""
+    print("
+── Why score>=3 is the bottleneck ──")
+    print("
+  Each layer alone")
+    for l in layer_names:
+        print(f"    {l[1:]:<20} {100 * data[l].mean():>6.1f}%")
+
+    print("
+  Pairwise co-occurrence (how often BOTH fire on the same candle)")
+    print("                        " + "".join(f"{l[1:4]:>7}" for l in layer_names))
+    for a in layer_names:
+        row = f"    {a[1:]:<20}"
+        for b in layer_names:
+            row += f"{100 * (data[a] & data[b]).mean():>7.1f}" if a != b else f"{'--':>7}"
+        print(row)
+
+    counts = sum(data[l].astype(int) for l in layer_names)
+    print("
+  Score distribution (how many layers fire at once)")
+    for k in range(6):
+        pct = 100.0 * (counts == k).mean()
+        print(f"    {k} of 5   {pct:>6.2f}%   {'#' * int(pct / 2)}")
 
 
 def report(data: pd.DataFrame, gate_names: list[str], label: str) -> None:
@@ -190,9 +222,11 @@ def main() -> int:
           f"rsi<{strategy.buy_rsi.value}, vol>{strategy.buy_vol_mult.value}x")
 
     data = analyse(bt, config)
-    gate_names = [c for c in data.columns if c not in ("pair", "date")]
+    gate_names = [c for c in data.columns if c not in ("pair", "date") and not c.startswith("_L")]
+    layer_names = [c for c in data.columns if c.startswith("_L")]
 
     report(data, gate_names, "FULL HISTORY")
+    layer_report(data, layer_names)
     if args.by_year:
         for year, chunk in data.groupby(data["date"].dt.year):
             report(chunk, gate_names, f"{year}")
