@@ -56,6 +56,12 @@ basis. If that seems unreasonable, the honest conclusion is to hold Bitcoin.
 3. **Re-measure the benchmark over the same window** as whatever you are scoring. The table
    above covers one full cycle; a two-week live sample must be compared against the
    benchmark over those same two weeks, not against these headline figures.
+4. **"The window" means the period WATCHED, not the period traded.** Until 2026-11-25
+   `performance_report.py` measured its span from the first trade open to the last close,
+   so after 43 days of observation it reported "spans 9 days" and refused to annualise.
+   The 90-day gate was therefore gated on trade span, and in a drought would never have
+   opened. Fixed; the gate now runs on calendar time from `--since`. **From the 2026-10-13
+   boundary, 90 days lands on 2027-01-11** — not mid-November, as this file previously said.
 
 ### Evidence log — what has been scored against this bar
 

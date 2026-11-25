@@ -1373,3 +1373,62 @@ same candles, and no allocation variant beat the benchmark on return. **Conclusi
 unchanged: the benchmark stands, and holding it needs no bot.** The owner decision
 of 2026-10-14 ("Not good enough — rethink the approach") now has a fifth independent
 test behind it.
+
+
+## 2026-11-25 — CORRECTION #11: the report measured the wrong period
+
+Status check after three weeks. Infrastructure clean: bot `active`, 0 restarts, disk 38%,
+0 healthcheck failures in 14 days, and the monthly scoreboard timer fired on schedule at
+2026-11-14 01:00 UTC (`Result=success`, so delivery succeeded — the send runs under
+`set -e` with no `|| true`).
+
+Trading: still **2 closed trades, none since 2026-10-29** — 27 quiet days inside 43 days
+of observation. The gates are correctly sitting out; all pairs remain below the daily EMA50.
+
+### The error
+
+`benchmark_lines()` and `exposure_lines()` both derived their span from the trades —
+first open to last close — rather than from the period being watched. On 43 days of
+observation the report said:
+
+```
+Exposure: 12% of elapsed time ... (3 trade-days over 9 days)
+Sample spans 9 days — too short to annualise (need 90+)
+```
+
+Two consequences, both in the flattering direction, which is now the recognised signature
+of this project's measurement bugs:
+
+1. **The 90-day annualisation gate was gated on TRADE span, not calendar time.** In a
+   drought it would never open, however long the bot ran. `docs/ROADMAP.md` and the Notion
+   hub both carried the wrong expectation ("by Nov 14 the span clears 90 days") because of
+   this. The real date, from the 2026-10-13 boundary, is **2027-01-11**.
+2. **Exposure was overstated 4.6x** — 12% of a 9-day trade window instead of 2.6% of the
+   43 days capital actually sat idle.
+
+### The deeper problem
+
+A month of no trading rendered *identically* to the day the last trade closed. For a
+project whose signature failure mode is silence — six incidents, all silent — a report
+that cannot show "nothing happened for a month" is the wrong shape. The drought was
+visible only because a human asked.
+
+### The fix
+
+New `observation_window()` returns (days observed, days since last close), measured from
+`--since` to now and floored at the first trade so an over-wide `--since` cannot understate
+exposure. Both sections use it, and a warning now fires after 7 quiet days. After:
+
+```
+Exposure: 2.6% of the WATCHED period ... (3 trade-days over 43 days watched)
+  ⚠️  No trade has closed in 27 days.
+Sample spans 43 days — too short to annualise (need 90+)
+```
+
+Report-only: no strategy, config or trading change. The paper trade is untouched and
+remains comparable.
+
+### Still open
+
+The Telegram token has been the publicly-exposed value since 2026-11-04. It works, which
+is why it has survived three weeks. Owner action: re-issue via @BotFather, update `~/.env`.
