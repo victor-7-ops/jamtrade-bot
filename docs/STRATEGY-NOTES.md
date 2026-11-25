@@ -1432,3 +1432,86 @@ remains comparable.
 
 The Telegram token has been the publicly-exposed value since 2026-11-04. It works, which
 is why it has survived three weeks. Owner action: re-issue via @BotFather, update `~/.env`.
+
+
+## 2026-11-25 — Gate attrition: the narrowness is load-bearing (and we blamed the wrong gate)
+
+Frequency, not return, is the binding constraint: 2 trades in 43 days live, which implies
+~21 months to reach a 30-trade sample. A strategy that cannot accumulate a judgeable sample
+inside two years cannot be iterated on, whatever its edge. New `scripts/gate_attrition.py`
+measures what each entry gate actually costs. Indicators come from the strategy's own
+`advise_indicators()` through freqtrade's `Backtesting` wiring, not a reimplementation.
+
+### CORRECTION #12 — it was never the daily gates
+
+Every drought diagnosis in this project (2026-07-20, 2026-10-13, 2026-11-03, 2026-11-25)
+said the same thing: *all pairs below the daily EMA50, the HTF gates are correctly sitting
+out*. Measured over 80,608 candles across 8 pairs, that is the **least** restrictive gate:
+
+```
+                  passes alone    marginal (kills, of those passing the other three)
+score>=3                  6.5%    92.3%   <-- the bottleneck
+ADX>=25                  50.0%    45.0%
+daily>EMA200             35.6%    37.1%
+daily>EMA50              41.7%    20.7%   <-- least restrictive
+```
+
+The daily gate was blamed because it was the one checked by hand, live, on days with no
+trades. It passes least often *alone*, but mostly blocks candles the score gate had already
+killed. Marginal cost is the question; standalone pass rate is not.
+
+### Why the score gate is so tight — a design finding
+
+```
+L1_above_ema50 x L2_rsi_oversold  =  0.0%     mutually exclusive
+L1_above_ema50 x L4_below_bb      =  0.3%
+L1_above_ema50 x L3_macd_up       = 29.2%
+L2_rsi_oversold x L4_below_bb     =  3.9%
+
+score distribution:  3 of 5 = 6.45%   4 of 5 = 0.03%   5 of 5 = 0.00%
+```
+
+L1 wants price above its 50-EMA; L2 wants RSI below 32. Those cannot both hold. The five
+"independent confirmations" are really two mutually exclusive clusters, `L1+L3` (momentum)
+and `L2+L4` (oversold), so exactly two triples are reachable: **L1+L3+L5 or L2+L4+L5**.
+
+Three consequences:
+
+1. **"3 of 5" is a false description of the logic.** It reads as flexible; it is two rigid
+   triples. README.md and CLAUDE.md now carry a warning.
+2. **L5 is effectively mandatory.** This independently explains the 2026-10-13 finding that
+   L5 fires on ~100% of entries, and why its venue-specificity (~9% backtest/live
+   disagreement on the volume condition) is so consequential.
+3. **`buy_min_score = IntParameter(2, 4)` has a degenerate upper bound.** 4-of-5 occurs on
+   0.03% of candles. Hyperopt could have selected it and produced a strategy that never
+   trades.
+
+### The relaxation test — rejected
+
+Rule committed before the run: a relaxation counts only if it BOTH reaches ~30 trades per
+6 months AND does not worsen out-of-sample return. `buy_min_score=2`, every other parameter
+untouched, run from an isolated `--strategy-path` so live files were never modified:
+
+```
+                 trades        return      maxDD    Sharpe(daily)
+train  score=3    190         +18.60%      9.01%     1.05
+train  score=2    257          -9.84%     28.40%    -0.32
+test   score=3     95         -10.17%     12.62%    -0.77
+test   score=2    131         -18.93%     20.31%    -1.04
+```
+
+Frequency bar: met (131 trades / 21 months ~ 37 per 6 months). Return bar: failed badly in
+BOTH halves, with roughly triple the drawdown. **Rejected.** Sixth failed test.
+
+### What this settles
+
+The selectivity is load-bearing. Whatever marginal quality the strategy has comes from being
+narrow, so frequency cannot be bought without destroying it: tight enough to be unmeasurable,
+or loose enough to be clearly negative, with nothing usable in between. **The frequency
+problem is not fixable within this architecture** — which is a stronger statement than the
+previous five results, because it is about the design rather than about a parameter.
+
+Combined with the benchmark result (15% basket + 85% T-bills beats this by ~18pp on the same
+candles), the 2026-10-14 owner decision stands on measured ground.
+
+No strategy, config or trading change. The paper trade is untouched.

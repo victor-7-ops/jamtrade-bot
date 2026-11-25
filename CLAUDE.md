@@ -11,7 +11,9 @@ This file orients Claude Code when working in this repository. Read it fully bef
 
 A crypto/stocks/forex trading bot built on **Freqtrade**. It runs a multi-confirmation
 strategy (5 signal layers + ADX regime filter + daily EMA50/EMA200 gates + ATR trailing
-stops). The current phase is **paper trading and strategy development** — NOT live
+stops). Note the "5 layers" are not independent: L1 and L2 are mutually exclusive (0.0%
+co-occurrence), so only two triples are reachable and L5 is effectively mandatory — see the
+warning in README.md and `scripts/gate_attrition.py` before reasoning about entries. The current phase is **paper trading and strategy development** — NOT live
 trading with real money.
 
 **Live thresholds live in `user_data/strategies/MultiConfirmationStrategy.json`**, not in

@@ -13,6 +13,15 @@ Currently in the **paper-trading / development** phase.
 A long-only multi-confirmation system. An entry requires **at least 3 of 5** signal layers
 to agree, AND all three gating filters to pass.
 
+> ⚠️ **"3 of 5" overstates the flexibility — measured 2026-11-25.** L1 (price above EMA50)
+> and L2 (RSI < 32) are mutually exclusive: they co-occur on **0.0%** of candles, because
+> price above its 50-EMA essentially never has RSI below 32. L4 conflicts with L1 almost as
+> hard (0.3%). So the layers form two clusters — `L1+L3` and `L2+L4` — and only two triples
+> are reachable in practice: **`L1+L3+L5` or `L2+L4+L5`**. L5 is effectively mandatory, which
+> is why it fires on ~100% of entries and why its venue-specificity matters so much.
+> 4-of-5 occurs on 0.03% of candles and 5-of-5 on none, so `buy_min_score`'s upper bound of 4
+> would produce a strategy that never trades. See `scripts/gate_attrition.py`.
+
 **Signal layers** (≥3 required to enter)
 1. Price above EMA50 (trend)
 2. RSI < 32 (oversold momentum) — hyperopt-tuned
