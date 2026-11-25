@@ -56,25 +56,36 @@ import pandas as pd
 logging.getLogger("freqtrade").setLevel(logging.ERROR)
 
 
-def load_strategy(config_path: str):
-    """The real strategy object, with hyperopt params applied, in backtest runmode.
+def load_backtesting(config_path: str):
+    """freqtrade's own Backtesting object: strategy + dataprovider + exchange.
 
-    Backtest runmode matters: DataProvider then serves the 1d informative from disk
-    (user_data/data/<exchange>/) instead of needing a live exchange, so
-    @informative("1d") merges exactly as it does in a backtest.
+    Built via Backtesting rather than StrategyResolver alone, for two reasons that
+    both bit on the first run of this script:
+
+      * StrategyResolver on its own left the CLASS DEFAULTS in place
+        (ADX>=22, rsi<38) instead of the hyperopt export in
+        MultiConfirmationStrategy.json that actually governs the bot
+        (ADX>=25, rsi<32, vol>1.8). Diagnosing the wrong thresholds would have
+        been this project's twelfth measurement error. CLAUDE.md warns about
+        exactly this file overriding class defaults.
+      * @informative("1d") calls dp.market(), which needs an exchange.
+
+    Backtesting wires both the way a real backtest does, so what is measured here
+    is what the backtest and the live bot actually evaluate.
     """
     from freqtrade.configuration import Configuration
-    from freqtrade.data.dataprovider import DataProvider
     from freqtrade.enums import RunMode
-    from freqtrade.resolvers import StrategyResolver
+    from freqtrade.optimize.backtesting import Backtesting
 
     config = Configuration.from_files([config_path])
     config["strategy"] = "MultiConfirmationStrategy"
     config["runmode"] = RunMode.BACKTEST
+    config.setdefault("timeframe", "4h")
+    config["export"] = "none"
 
-    strategy = StrategyResolver.load_strategy(config)
-    strategy.dp = DataProvider(config, None, None)
-    return strategy, config
+    bt = Backtesting(config)
+    bt.strategy.dp = bt.dataprovider
+    return bt, config
 
 
 def gates_for(strategy, df: pd.DataFrame) -> dict[str, pd.Series]:
@@ -102,28 +113,27 @@ def gates_for(strategy, df: pd.DataFrame) -> dict[str, pd.Series]:
     }
 
 
-def analyse(strategy, config, pairs: list[str], timeframe: str = "4h") -> pd.DataFrame:
-    from freqtrade.data.history import load_pair_history
-
-    datadir = Path(config["datadir"])
+def analyse(bt, config, timeframe: str = "4h") -> pd.DataFrame:
+    """Per-candle gate states, over the same candles a backtest would see."""
+    strategy = bt.strategy
     warmup = int(getattr(strategy, "startup_candle_count", 400))
+    data, _ = bt.load_bt_data()
     frames = []
 
-    for pair in pairs:
-        raw = load_pair_history(pair=pair, timeframe=timeframe, datadir=datadir)
+    for pair, raw in data.items():
         if raw.empty:
             print(f"  ! no {timeframe} data for {pair} — skipped", file=sys.stderr)
             continue
 
         df = strategy.advise_indicators(raw.copy(), {"pair": pair})
-        # Drop the warmup window: EMA200-on-daily is nan there, so the macro gate
-        # reads False and would be scored as "blocking" when it is merely unwarmed.
+        # Drop the warmup window: daily EMA200 is nan there, so the macro gate reads
+        # False and would be scored as "blocking" when it is merely unwarmed.
         df = df.iloc[warmup:].reset_index(drop=True)
         if df.empty:
             continue
 
         g = gates_for(strategy, df)
-        rows = {"pair": pair, "candles": len(df), "date": df["date"]}
+        rows = {"pair": pair, "date": df["date"]}
         rows.update({k: v.fillna(False) for k, v in g.items()})
         frames.append(pd.DataFrame(rows))
 
@@ -171,14 +181,14 @@ def main() -> int:
     ap.add_argument("--by-year", action="store_true", help="also break the table down per year")
     args = ap.parse_args()
 
-    strategy, config = load_strategy(args.config)
-    pairs = config["exchange"]["pair_whitelist"]
-    print(f"Strategy params in force: score>={strategy.buy_min_score.value}, "
-          f"ADX>={strategy.buy_adx_min.value}, rsi<{strategy.buy_rsi.value}, "
-          f"vol>{strategy.buy_vol_mult.value}x")
+    bt, config = load_backtesting(args.config)
+    strategy = bt.strategy
+    print(f"Params in force (from the hyperopt JSON, not class defaults): "
+          f"score>={strategy.buy_min_score.value}, ADX>={strategy.buy_adx_min.value}, "
+          f"rsi<{strategy.buy_rsi.value}, vol>{strategy.buy_vol_mult.value}x")
 
-    data = analyse(strategy, config, pairs)
-    gate_names = [c for c in data.columns if c not in ("pair", "candles", "date")]
+    data = analyse(bt, config)
+    gate_names = [c for c in data.columns if c not in ("pair", "date")]
 
     report(data, gate_names, "FULL HISTORY")
     if args.by_year:
